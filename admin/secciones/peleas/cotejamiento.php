@@ -124,7 +124,7 @@ include("../../templates/header.sub.php");
                 </form><!--FIN FORMULARIO TOLERANCIA-->
             </div><!--FIN SECCIÓN TOLERANCIA MANUAL Y AUTOMATICA-->
             <!--INICIA DIV Y FORMULARIO DE COTEJA MANUAL-->
-            <div class="card mx-0">
+            <div class="card mx-0 container-fluid">
                 <div class="card-header">
                     <span>Coteja Manual</span>
                 </div>
@@ -236,12 +236,25 @@ include("../../templates/header.sub.php");
         <div class="card-body container-fluid col-6">
             <!--INICIA FORMULARIO PARA SELECCIONAR COTEJAMIENTO-->
             <form class="contenido_tolerancia" action="peleaGenerada.php" enctype="multipart/form-data" method="post">
-                <div class=" card d-flex row ">
+                <div class=" card d-flex flex-column">
                     <div class="card-header">
                         <span>Cotejas</span>
                     </div>
 
-                    <div class="card d-flex flex-row table-responsive overflow-auto">
+                    <div class="card d-flex table-responsive col-auto overflow-auto">
+
+                        <div class="d-flex flex-row justify-content-center">
+                            <div class="text-center">
+                                <input type="hidden" name="peleaGenerada" value="1">
+                                <button name="peleasGenerada" type="submit" class="btn btn-success m-2">Pactar Peleas</button>
+                                <!--<button type="submit" class="btn btn-success m-2">Liberar Peleas</button>-->
+                                <!--<button type="submit" class="btn btn-success m-2">Imprimir</button>-->
+                            </div>
+                            <div class="text-center">
+                                <a name="coteja" id="" class="btn btn-success m-2" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja']; ?>" role="button">Liberar</a>
+                            </div>
+                        </div>
+
                         <!--PRESENTAR COTEJA MANUAL-->
                         <table class="table flex-fill text-center text-bg-light">
                             <thead class="table-primary">
@@ -294,9 +307,10 @@ include("../../templates/header.sub.php");
                                 <?php } ?>
                             </tbody>
                         </table>
-                        <div class="d-flex flex-column">
-                            <a name="coteja" id="" class="btn btn-success" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja']; ?>" role="button">Liberar</a>
-                        </div>
+                        <!--<div class="d-flex flex-column">
+                            <a name="coteja" id="" class="btn btn-success" href="cotejamiento.php?txtID=<?php //echo  $cotManual['ID_Coteja']; 
+                                                                                                        ?>" role="button">Liberar</a>
+                        </div>-->
 
                     </div>
                     <div class="card d-flex flex-row table-responsive overflow-auto">
@@ -539,88 +553,88 @@ include("../../templates/header.sub.php");
                             </table>
                         <?php endif; ?>
 
-                        <div class="d-flex flex-column">
+                        <!--<div class="d-flex flex-column">
                             <input type="hidden" name="peleaGenerada" value="1">
                             <button name="peleasGenerada" type="submit" class="btn btn-success m-2">Pactar Peleas</button>
-                            <!--<button type="submit" class="btn btn-success m-2">Liberar Peleas</button>-->
-                            <!--<button type="submit" class="btn btn-success m-2">Imprimir</button>-->
-                        </div>
+                            <button type="submit" class="btn btn-success m-2">Liberar Peleas</button>
+                            <button type="submit" class="btn btn-success m-2">Imprimir</button>
+                    </div>-->
 
-                    </div>
                 </div>
-            </form>
-            <!--SECCIÓN DE GALLOS LIBRES-->
-            <div class="card d-flex flex-column justify-content-center">
+        </div>
+        </form>
+        <!--SECCIÓN DE GALLOS LIBRES-->
+        <div class="card container-fluid d-flex justify-content-center">
 
-                <div class="card-header">
-                    <span>Gallos Libres</span>
-                </div>
+            <div class="card-header">
+                <span>Gallos Libres</span>
+            </div>
 
-                <div class="d-flex text-center justify-content-center">
-                    <input type="hidden" name="cotejaManual" value="1">
-                    <button name="cotManual" type="submit" class="btn btn-success m-2">Coteja Manual</button>
-                    <input type="hidden" name="peleaGenerada" value="1">
-                    <button name="peleaGenerada" type="submit" class="btn btn-success m-2">Pelea Manual</button>
-                </div>
+            <div class="d-flex text-center justify-content-center">
+                <input type="hidden" name="cotejaManual" value="1">
+                <button name="cotManual" type="submit" class="btn btn-success m-2">Coteja Manual</button>
+                <input type="hidden" name="peleaGenerada" value="1">
+                <button name="peleaGenerada" type="submit" class="btn btn-success m-2">Pelea Manual</button>
+            </div>
 
-                <div class="d-flex flex-row ">
-                    <form action="">
-                        <div class="d-flex table-responsive">
-                            <table class="table text-center">
-                                <thead class="table-primary">
+            <div class="d-flex container-fluid ">
+                <form action="">
+                    <div class="d-flex col-auto table-responsive">
+                        <table class="table text-center">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th>ITEM</th>
+                                    <th>Anillo</th>
+                                    <th>Criadero</th>
+                                    <th>Tamaño</th>
+                                    <th>Peso</th>
+                                    <th>Nacimiento</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($gallosLibres as $galloLibre) :
+
+                                    $familiasId1 = $galloLibre['familiasId'];
+                                    // Consulta para obtener los datos de la tabla 'familias'
+                                    $query1 = $conexion->prepare("SELECT nombre FROM familias WHERE codigo = :familiasId");
+                                    $query1->bindParam(':familiasId', $familiasId1);
+                                    $query1->execute();
+                                    $familia1 = $query1->fetch(PDO::FETCH_ASSOC);
+                                ?>
                                     <tr>
-                                        <th>ITEM</th>
-                                        <th>Anillo</th>
-                                        <th>Criadero</th>
-                                        <th>Tamaño</th>
-                                        <th>Peso</th>
-                                        <th>Nacimiento</th>
-                                        <th>Estado</th>
+                                        <td><?php echo $item2 += 1;
+                                            ?></td>
+                                        <td><?php echo $galloLibre['anillo'];
+                                            ?></td>
+                                        <td><?php echo $familia1['nombre'];
+                                            ?></td>
+                                        <td><?php echo $galloLibre['tamañoReal'];
+                                            ?></td>
+                                        <td><?php echo $galloLibre['pesoReal'];
+                                            ?></td>
+                                        <td><?php echo $galloLibre['nacimiento'];
+                                            ?></td>
+                                        <td><input type="checkbox" name="gallos[]" value="<?php echo $galloLibre['ID']; ?>"></td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($gallosLibres as $galloLibre) :
-
-                                        $familiasId1 = $galloLibre['familiasId'];
-                                        // Consulta para obtener los datos de la tabla 'familias'
-                                        $query1 = $conexion->prepare("SELECT nombre FROM familias WHERE codigo = :familiasId");
-                                        $query1->bindParam(':familiasId', $familiasId1);
-                                        $query1->execute();
-                                        $familia1 = $query1->fetch(PDO::FETCH_ASSOC);
-                                    ?>
-                                        <tr>
-                                            <td><?php echo $item2 += 1;
-                                                ?></td>
-                                            <td><?php echo $galloLibre['anillo'];
-                                                ?></td>
-                                            <td><?php echo $familia1['nombre'];
-                                                ?></td>
-                                            <td><?php echo $galloLibre['tamañoReal'];
-                                                ?></td>
-                                            <td><?php echo $galloLibre['pesoReal'];
-                                                ?></td>
-                                            <td><?php echo $galloLibre['nacimiento'];
-                                                ?></td>
-                                            <td><input type="checkbox" name="gallos[]" value="<?php echo $galloLibre['ID']; ?>"></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                            <!--<div class="d-flex flex-column py-5">
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        <!--<div class="d-flex flex-column py-5">
                                 <input type="hidden" name="peleaGenerada" value="1">
                                 <button name="peleaGenerada" type="submit" class="btn btn-success m-2">Pelea Manual</button>
                                 <button name="cotManual" type="submit" class="btn btn-success m-2">Coteja Manual</button>
                             </div>-->
-                        </div>
-                    </form>
-
-                </div>
+                    </div>
+                </form>
 
             </div>
 
         </div>
 
-    </section>
+</div>
+
+</section>
 
 </div>
 
