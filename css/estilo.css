@@ -1,0 +1,14 @@
+/*MIOS*/
+.card{
+    position: relative;
+}
+
+.card .bloque{
+    position: absolute;
+    background-color: blueviolet;
+}
+
+.table{
+    width: 50%;
+    color: black;
+}

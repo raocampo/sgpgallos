@@ -1,0 +1,250 @@
+SIDEBAR = {
+    width: 240px,
+    widthCollapsed: 50px,
+    collapseTransition: max-width 0.4s ease\, min-width 0.4s ease,
+    mediaQuery: 500px
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    font-family: 'Open Sans', sans-serif;
+    font-weight: 300;
+    background: #e1e1e1;
+}
+
+ul {
+    list-style: none;
+}
+
+a {
+    text-decoration: none;
+    color: #818181;
+}
+
+.Wrapper {
+    display: table;
+    width: 100%;
+    height: 100%;
+}
+
+.Sidebar {
+    position: relative;
+    display: table-cell;
+    min-width: SIDEBAR.width;
+    // needs a max-width in order to overflow menu items
+    max-width: SIDEBAR.width;
+    min-height: 100%;
+    background-color: #212121;
+    transition: SIDEBAR.collapseTransition;
+    user-select: none;
+    
+    &.is-collapsed {
+        max-width: 50px;
+        min-width: 50px;
+        transition: SIDEBAR.collapseTransition;
+
+        .Sidebar-logo {
+            transform: scale(0.625) translate(-64px, -104px);
+            transition: transform 0.4s ease;
+        }
+        
+        .Sidebar-navItem {
+            padding-left: 17px;
+            transition: padding-left 0.4s ease;
+            
+            a {
+                opacity: 0;
+            }
+        }
+
+        .Sidebar-toggleText {
+            display: none;
+        }
+        
+        .Sidebar-toggleArrow {
+            left: 17.5px;
+            transform: rotate(179deg);
+        }
+        
+        .Sidebar-footer {
+            &:hover {
+                .Sidebar-toggleArrow {
+                    left: 17.5px;
+                    transition: left 0.4s ease, 
+                                transform 0.4s ease;
+                }
+            }
+        }
+    }
+
+    @media (max-width: SIDEBAR.mediaQuery) {
+        min-width: SIDEBAR.widthCollapsed;
+    }
+}
+
+
+
+    .Sidebar-header {
+        position: relative;
+        height: 130px;
+        margin-bottom: 50px;        
+        text-align: center;
+    }
+
+
+
+        .Sidebar-logo {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-40px);
+            display: inline-block;
+            width: 80px;
+            height: 80px;
+            background: cadetblue;
+            transition: transform 0.4s ease, 
+                        height 0.4s ease, 
+                        width 0.4s ease;
+            
+            @media (max-width: SIDEBAR.mediaQUery) {
+                transform: translate(-24px, -80px);
+                width: 50px;
+                height: 50px;
+            }
+        }
+
+
+
+    .Sidebar-navItem {
+        padding: 10px 0 10px 40px;
+        white-space: nowrap;
+        overflow: hidden;
+        transition: padding-left 0.4s ease;
+
+        @media (max-width: SIDEBAR.mediaQUery) {
+            padding-left: 17px;
+        }
+
+        &:hover {
+            background-color: #323232;
+            cursor: pointer;
+        }
+
+        a {
+            opacity: 1;
+            transition: opacity 0.4s ease;
+            
+            @media (max-width: SIDEBAR.mediaQUery) {
+                display: none;
+            }
+        }
+    }
+    
+
+
+    .Sidebar-footer {
+        position: absolute;
+        bottom: 0;
+        height: 60px;
+        width: 100%;
+        
+        &:hover {
+            background: darken(#212121, 15%);
+            cursor: pointer;
+            
+            .Sidebar-toggleArrow {
+                transition: left 0.2s ease, 
+                            rotate 1s ease;
+                left: 70px;
+            }
+            
+            @media (max-width: SIDEBAR.mediaQuery) {
+                &:hover {
+                    .Sidebar-toggleArrow {
+                        left: 25px;                    
+                    }
+                    
+                    .Sidebar-toggleText {
+                        display: none;
+                    }
+                }
+            }
+            
+            .Sidebar-toggleText {
+                opacity: 1;
+                animation: fadeIn 0.75s ease;
+            }
+        }
+    }
+
+
+
+        .Sidebar-toggleArrow {
+            position: absolute;
+            bottom: 22px;
+            left: 50%;
+            transform: translateX(-7px);
+            cursor: pointer;
+            transition: left 0.2s ease;
+            
+            @media (max-width: SIDEBAR.mediaQuery) {
+                left: 20px;
+                transform: rotate(179deg);
+                
+                &:hover {
+                    left: 20px;
+                }
+            }
+        }
+
+
+
+        .Sidebar-toggleText {
+            position: absolute;
+            bottom: 22px;
+            left: 85px;
+            opacity: 0;
+            color: #818181;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+
+    
+
+    .Sidebar-menuIcon {
+        color: #818181;
+        
+        &:not(.Sidebar-toggleArrow) {
+            margin-right: 1rem;
+        }
+    }
+
+
+
+.Main { 
+    display: table-cell;
+    vertical-align: top;
+    width: 100%;
+}
+
+
+
+@keyframes fadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+
+
+@keyframes sidebarArrow {
+    0% { left: }
+}
