@@ -19,7 +19,6 @@ $torneoId = $_SESSION['torneoId'];
 $item = 0;
 $item1 = 0;
 $item2 = 0;
-$item3 = 0;
 $gallosSeleccionados = array();
 $parejaEncontradaTolerancia;
 
@@ -199,10 +198,10 @@ include("../../templates/header.sub.php");
                                     <tr>
                                         <th>ITEM</th>
                                         <th>Anillo</th>
-                                        <th>Gallo-Criadero</th>
-                                        <th>AlturaL</th>
-                                        <th>PesoL</th>
-                                        <th>Mes Nacimiento</th>
+                                        <th>Criadero</th>
+                                        <th>Altura</th>
+                                        <th>Peso</th>
+                                        <th>Mes Nac</th>
                                         <th>Seleccionar Pareja</th>
                                     </tr>
                                 </thead>
@@ -219,9 +218,7 @@ include("../../templates/header.sub.php");
                                             <td><?php echo $gallo['pesoReal']; ?></td>
                                             <td><?php echo $gallo['tamañoReal']; ?></td>
                                             <td><?php echo $gallo['nacimiento']; ?></td>
-                                            <td><input type="checkbox" class="checkbox-pareja" name="cotejamiento[]" value="<?php echo $gallo['ID']; ?>" <?php if ($checkboxDisabled) {
-                                                                                                                                                                echo 'disabled';
-                                                                                                                                                            } ?>></td>
+                                            <td><input type="checkbox" class="checkbox-pareja" name="cotejamiento[]" value="<?php echo $gallo['ID']; ?>" <?php if ($checkboxDisabled) {echo 'disabled';} ?>></td>
                                         </tr>
                                     <?php } ?>
                                 </tbody>
