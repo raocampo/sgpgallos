@@ -57,7 +57,7 @@ include ("../../templates/header.sub.php");
         <a name="" id="" class="btn btn-primary" href="crear.php" role="button"><i class="fa-solid fa-plus"></i> Agregar</a>
     </div>
     <div class="card-body">
-        <div class="table-responsive-sm">
+        <div class="table-responsive">
             <table class="table">
                 <thead class="table-primary">
                     <tr>
@@ -68,12 +68,9 @@ include ("../../templates/header.sub.php");
                         <th scope="col">Placa</th>
                         <th scope="col">Mes Nacimiento</th>
                         <th scope="col">frente</th>
-                        <th scope="col">Cuerda</th>
+                        <th scope="col">Criadero</th>
                         <th scope="col">Representante</th>
                         <th scope="col">Acciones</th>
-                        <!--<th scope="col">Color</th>
-                        <th scope="col">Imagen</th>
-                        <th scope="col">Raza</th>-->
                     </tr>
                 </thead>
                 <tbody>
