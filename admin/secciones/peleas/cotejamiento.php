@@ -247,9 +247,9 @@ include("../../templates/header.sub.php");
                                 <!--<button type="submit" class="btn btn-success m-2">Liberar Peleas</button>-->
                                 <!--<button type="submit" class="btn btn-success m-2">Imprimir</button>-->
                             </div>
-                            <div class="text-center">
-                                <a name="coteja" id="" class="btn btn-success m-2" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja']; ?>" role="button">Liberar</a>
-                            </div>
+                            <!--<div class="text-center">
+                                <a name="coteja" id="" class="btn btn-success m-2" href="cotejamiento.php?txtID=<?php //echo  $cotManual['ID_Coteja']; ?>" role="button">Liberar</a>
+                            </div>-->
                         </div>
 
                         <!--PRESENTAR COTEJA MANUAL-->
@@ -304,10 +304,9 @@ include("../../templates/header.sub.php");
                                 <?php } ?>
                             </tbody>
                         </table>
-                        <!--<div class="d-flex flex-column">
-                            <a name="coteja" id="" class="btn btn-success" href="cotejamiento.php?txtID=<?php //echo  $cotManual['ID_Coteja']; 
-                                                                                                        ?>" role="button">Liberar</a>
-                        </div>-->
+                        <div class="d-flex">
+                            <a name="coteja" id="" class="btn btn-success" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja'];?>" role="button">Liberar</a>
+                        </div>
 
                     </div>
                     <div class="card d-flex flex-row table-responsive overflow-auto">
