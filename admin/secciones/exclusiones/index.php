@@ -51,8 +51,12 @@ include("../../templates/header.sub.php");
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    <div class="text-center">
+                        <button class="btn btn-success mt-3" type="submit">Agregar exclusión</button>
 
-                    <button class="btn btn-success mt-3" type="submit">Agregar exclusión</button>
+                        <a name="" id="" class="btn btn-info mt-3" href="procExclusiones.php" role="button">Ir a Excluidos</a>
+                    </div>
+
                 </form>
             </div>
         </div>

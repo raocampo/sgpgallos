@@ -240,7 +240,9 @@ include("../../templates/header.sub.php");
                                             <td><?php echo $gallo['pesoReal']; ?></td>
                                             <td><?php echo $gallo['tamañoReal']; ?></td>
                                             <td><?php echo $gallo['nacimiento']; ?></td>
-                                            <td><input type="checkbox" class="checkbox-pareja" name="cotejamiento[]" value="<?php echo $gallo['ID']; ?>" <?php if ($checkboxDisabled) {echo 'disabled';} ?>></td>
+                                            <td><input type="checkbox" class="checkbox-pareja" name="cotejamiento[]" value="<?php echo $gallo['ID']; ?>" <?php if ($checkboxDisabled) {
+                                                                                                                                                                echo 'disabled';
+                                                                                                                                                            } ?>></td>
                                         </tr>
                                     <?php } ?>
                                 </tbody>
@@ -266,12 +268,7 @@ include("../../templates/header.sub.php");
                             <div class="text-center">
                                 <input type="hidden" name="peleaGenerada" value="1">
                                 <button name="peleasGenerada" type="submit" class="btn btn-success m-2">Pactar Peleas</button>
-                                <!--<button type="submit" class="btn btn-success m-2">Liberar Peleas</button>-->
-                                <!--<button type="submit" class="btn btn-success m-2">Imprimir</button>-->
                             </div>
-                            <!--<div class="text-center">
-                                <a name="coteja" id="" class="btn btn-success m-2" href="cotejamiento.php?txtID=<?php //echo  $cotManual['ID_Coteja']; ?>" role="button">Liberar</a>
-                            </div>-->
                         </div>
 
                         <!--PRESENTAR COTEJA MANUAL-->
@@ -283,13 +280,14 @@ include("../../templates/header.sub.php");
                                     <th>GalloL</th>
                                     <th>AlturaL</th>
                                     <th>PesoL</th>
-                                    <th>NacimientoL</th>
+                                    <th>MesNacL</th>
                                     <th>Anillo</th>
                                     <th>GalloV</th>
                                     <th>AlturaV</th>
                                     <th>PesoV</th>
-                                    <th>NacimientoV</th>
+                                    <th>MesNacV</th>
                                     <th>Seleccionar</th>
+                                    <th>Acción</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -322,16 +320,13 @@ include("../../templates/header.sub.php");
                                         <td><?php echo $cotManual['pesoRealV']; ?></td>
                                         <td><?php echo $cotManual['nacimientoV']; ?></td>
                                         <td><input type="checkbox" name="peleas[]" value="<?php echo $cotManual['ID_Coteja']; ?>"></td>
-                                        <td><a name="coteja" id="" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja'];?>"><i class="fa-solid fa-trash-can"></i></a></td>
+                                        <td><a name="coteja" id="" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja']; ?>"><i class="fa-solid fa-trash-can"></i></a></td>
                                     </tr>
                                 <?php } ?>
                             </tbody>
                         </table>
-                        <!--<div class="d-flex">
-                            <a name="coteja" id="" class="btn btn-success" href="cotejamiento.php?txtID=<?php //echo  $cotManual['ID_Coteja'];?>" role="button"><i class="bi bi-trash3-fill"></i></a>
-                        </div>-->
-
                     </div>
+
                     <div class="card d-flex flex-row table-responsive overflow-auto">
                         <?php
                         $ids_cotejados = [];
@@ -579,82 +574,155 @@ include("../../templates/header.sub.php");
                             <button type="submit" class="btn btn-success m-2">Imprimir</button>
                     </div>-->
 
-                </div>
-        </div>
-        </form>
-        <!--SECCIÓN DE GALLOS LIBRES-->
-        <div class="card container-fluid d-flex justify-content-center">
-
-            <div class="card-header">
-                <span>Gallos Libres</span>
-            </div>
-
-            <div class="d-flex text-center justify-content-center">
-                <input type="hidden" name="cotejaManual" value="1">
-                <button name="cotManual" type="submit" class="btn btn-success m-2">Coteja Manual</button>
-                <input type="hidden" name="peleaGenerada" value="1">
-                <button name="peleaGenerada" type="submit" class="btn btn-success m-2">Pelea Manual</button>
-            </div>
-
-            <div class="d-flex container-fluid ">
-                <form class="contenidoGallosLibres" action="" enctype="multipart/form-data" method="post">
-                    <div class="d-flex col-auto table-responsive">
-                        <table class="table text-center">
-                            <thead class="table-primary">
-                                <tr>
-                                    <th>ITEM</th>
-                                    <th>Anillo</th>
-                                    <th>Criadero</th>
-                                    <th>Tamaño</th>
-                                    <th>Peso</th>
-                                    <th>Nacimiento</th>
-                                    <th>Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($gallosLibres as $galloLibre) :
-
-                                    $familiasId1 = $galloLibre['familiasId'];
-                                    // Consulta para obtener los datos de la tabla 'familias'
-                                    $query1 = $conexion->prepare("SELECT nombre FROM familias WHERE codigo = :familiasId");
-                                    $query1->bindParam(':familiasId', $familiasId1);
-                                    $query1->execute();
-                                    $familia1 = $query1->fetch(PDO::FETCH_ASSOC);
-                                ?>
-                                    <tr>
-                                        <td><?php echo $item2 += 1;
-                                            ?></td>
-                                        <td><?php echo $galloLibre['anillo'];
-                                            ?></td>
-                                        <td><?php echo $familia1['nombre'];
-                                            ?></td>
-                                        <td><?php echo $galloLibre['tamañoReal'];
-                                            ?></td>
-                                        <td><?php echo $galloLibre['pesoReal'];
-                                            ?></td>
-                                        <td><?php echo $galloLibre['nacimiento'];
-                                            ?></td>
-                                        <td><input type="checkbox" name="gallos[]" value="<?php echo $galloLibre['ID']; ?>"></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                        <!--<div class="d-flex flex-column py-5">
-                                <input type="hidden" name="peleaGenerada" value="1">
-                                <button name="peleaGenerada" type="submit" class="btn btn-success m-2">Pelea Manual</button>
-                                <button name="cotManual" type="submit" class="btn btn-success m-2">Coteja Manual</button>
-                            </div>-->
                     </div>
-                </form>
+                </div>
+            </form>
+            <!--SECCIÓN DE GALLOS LIBRES-->
+            <div class="card container-fluid d-flex justify-content-center">
+
+                <div class="card-header">
+                    <span>Gallos Libres</span>
+                </div>
+
+                <div class="d-flex container-fluid ">
+                    <form class="contenidoGallosLibres" action="" enctype="multipart/form-data" method="post">
+
+                        <?php
+                        /* Obtener los gallos seleccionados
+                            if (isset($_POST['gallos']) && !empty($_POST['gallos'])) {
+                                print_r($_POST);
+                            $sentencia = $conexion->prepare("INSERT INTO `coteja` (`galloL`, `galloV`, `estado`, `torneoId`) VALUES (:galloL, :galloV, :estado, :torneoId)");
+                            $sentencia->bindParam(":torneoId", $torneoId);
+
+                            $galloL = '';
+                            $galloV = '';
+                           }*/
+
+                        // Verificar si se han enviado los IDs de los gallos seleccionados
+                        if (isset($_POST['gallos']) && !empty($_POST['gallos'])) {
+                            // Obtener los IDs de los gallos seleccionados
+                            $galloIds = $_POST['gallos'];
+
+                            // Verificar que se hayan seleccionado dos gallos
+                            if (count($galloIds) !== 2) {
+                                echo "Debe seleccionar exactamente 2 gallos para poder realizar la coteja manual.";
+                                exit();
+                            }
+
+                            // Obtener los IDs de los gallos seleccionados
+                            $galloL = $galloIds[0];
+                            $galloV = $galloIds[1];
+
+                            // Insertar los gallos en la tabla coteja
+                            $sentencia = $conexion->prepare("INSERT INTO `coteja` (`galloL`, `galloV`, `estado`, `torneoId`) VALUES (:galloL, :galloV, :estado, :torneoId)");
+                            $estado = 0; // Opcional: Define el valor del campo "estado" según tus requerimientos
+                            $sentencia->bindParam(":galloL", $galloL);
+                            $sentencia->bindParam(":galloV", $galloV);
+                            $sentencia->bindParam(":estado", $estado);
+                            $sentencia->bindParam(":torneoId", $torneoId); // Asegúrate de tener $torneoId definido previamente
+
+                            // Ejecutar la consulta
+                            if ($sentencia->execute()) {
+                                echo "Los gallos se cotejaron exitosamente.";
+                            } /*else {
+                                //echo "Error al cotejar los gallos. Por favor, inténtalo de nuevo.";
+                            }*/
+                        } /*else {
+                            echo "Debe seleccionar exactamente 2 gallos para poder realizar la coteja manual.";
+                        }*/
+                        ?>
+                        <div class="d-flex text-center justify-content-center">
+                            <button name="cotManual" type="button" class="btn btn-success btn-cotejar-manual m-2">Coteja Manual</button>
+                        </div>
+                        <div class="d-flex col-auto table-responsive">
+
+                            <table class="table flex-fill text-center">
+                                <thead class="table-primary">
+                                    <tr>
+                                        <th>ITEM</th>
+                                        <th>Anillo</th>
+                                        <th>Criadero</th>
+                                        <th>Tamaño</th>
+                                        <th>Peso</th>
+                                        <th>Mes Nac</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($gallosLibres as $galloLibre) :
+
+                                        $familiasId1 = $galloLibre['familiasId'];
+                                        // Consulta para obtener los datos de la tabla 'familias'
+                                        $query1 = $conexion->prepare("SELECT nombre FROM familias WHERE codigo = :familiasId");
+                                        $query1->bindParam(':familiasId', $familiasId1);
+                                        $query1->execute();
+                                        $familia1 = $query1->fetch(PDO::FETCH_ASSOC);
+                                    ?>
+                                        <tr>
+                                            <td><?php echo $item2 += 1;
+                                                ?></td>
+                                            <td><?php echo $galloLibre['anillo'];
+                                                ?></td>
+                                            <td><?php echo $familia1['nombre'];
+                                                ?></td>
+                                            <td><?php echo $galloLibre['tamañoReal'];
+                                                ?></td>
+                                            <td><?php echo $galloLibre['pesoReal'];
+                                                ?></td>
+                                            <td><?php echo $galloLibre['nacimiento'];
+                                                ?></td>
+                                            <td>
+                                                <input class="checkbox-gallo" type="checkbox" name="gallos[]" value="<?php echo $galloLibre['ID']; ?>">
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </form>
+
+                </div>
 
             </div>
 
         </div>
 
-</div>
-
-</section>
+    </section>
 
 </div>
+<script>
+    $(document).ready(function() {
+        $(".btn-cotejar-manual").click(function() {
+            var checkboxes = $(".checkbox-gallo:checked");
+            if (checkboxes.length === 2) {
+                var galloIds = checkboxes.map(function() {
+                    return this.value;
+                }).get();
+
+                // Enviar los IDs de los gallos seleccionados al servidor mediante AJAX
+                $.ajax({
+                    url: "", // Deja esto en blanco para enviar la solicitud al mismo archivo actual
+                    type: "POST",
+                    data: {
+                        gallos: galloIds
+                    },
+                    success: function(response) {
+                        // Aquí puedes manejar la respuesta del servidor si es necesario
+                        alert("Los gallos se cotejaron exitosamente.");
+                        // Actualizar la página para reflejar los cambios en la tabla de "Coteja Manual"
+                        location.reload();
+                    },
+                    error: function(xhr, status, error) {
+                        // Manejar errores si es necesario
+                        console.error(error);
+                        alert("Error al cotejar los gallos. Por favor, inténtalo de nuevo.");
+                    }
+                });
+            } else {
+                alert("Selecciona exactamente 2 gallos para cotejar.");
+            }
+        });
+    });
+</script>
 
 <?php include("../../templates/footer.php"); ?>
