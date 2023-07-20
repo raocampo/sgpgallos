@@ -61,7 +61,6 @@ WHERE exclusiones.torneoId = ?");
 $sentenciaExclusiones->execute([$torneoId]);
 
 $listaExclusiones = $sentenciaExclusiones->fetchAll(PDO::FETCH_ASSOC);
-print_r($listaExclusiones);
 
 
 include("../../templates/header.sub.php");
