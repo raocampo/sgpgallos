@@ -21,9 +21,17 @@ if($_POST){
   $frente=(isset($_POST['frente']))?$_POST['frente']:"";
   $fam=(isset($_POST['familiasId']))?$_POST['familiasId']:"";
   $rep=(isset($_POST['representanteId']))?$_POST['representanteId']:"";
-  print_r($_POST);
+  //print_r($_POST);
 
-  $sentencia=$conexion->prepare("INSERT INTO `gallos` (`ID`, `anillo`, `pesoReal`, `tamañoReal`, `placa`, `nacimiento`, `frente`, `familiasId`, `representanteId`, `torneoId`) VALUES (NULL, :anillo, :pesoReal, :alturaReal, :placa, :nacimiento, :frente, :familiasId, :representanteId, :torneoId)");
+  // Verificar si ya existe un gallo con el mismo anillo en el torneo actual
+    $sentenciaVerificacion = $conexion->prepare("SELECT COUNT(*) FROM gallos WHERE anillo = ? AND torneoId = ?");
+    $sentenciaVerificacion->execute([$anillo, $torneoId]);
+    $galloExistente = $sentenciaVerificacion->fetchColumn();
+
+    if ($galloExistente) {
+        echo "Ya existe un gallo con el mismo anillo en este torneo. Por favor, ingrese un anillo diferente.";
+    }else{
+      $sentencia=$conexion->prepare("INSERT INTO `gallos` (`ID`, `anillo`, `pesoReal`, `tamañoReal`, `placa`, `nacimiento`, `frente`, `familiasId`, `representanteId`, `torneoId`) VALUES (NULL, :anillo, :pesoReal, :alturaReal, :placa, :nacimiento, :frente, :familiasId, :representanteId, :torneoId)");
 
   $sentencia->bindParam(":anillo",$anillo);
   $sentencia->bindParam(":pesoReal",$pesoR);
@@ -43,6 +51,8 @@ if($_POST){
   else{
     echo "El Registro no se agrego";
   }
+    }
+  
 }
 
 //Con esta sentencias seleccionamos los datos de la tabla de familias
