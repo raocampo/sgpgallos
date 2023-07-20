@@ -29,7 +29,7 @@ if($_POST){
     $galloExistente = $sentenciaVerificacion->fetchColumn();
 
     if ($galloExistente) {
-        echo "Ya existe un gallo con el mismo anillo en este torneo. Por favor, ingrese un anillo diferente.";
+        echo "<script>alert('Ya existe un gallo con el mismo anillo en este torneo. Por favor, ingrese un anillo diferente.');</script>";
     }else{
       $sentencia=$conexion->prepare("INSERT INTO `gallos` (`ID`, `anillo`, `pesoReal`, `tamañoReal`, `placa`, `nacimiento`, `frente`, `familiasId`, `representanteId`, `torneoId`) VALUES (NULL, :anillo, :pesoReal, :alturaReal, :placa, :nacimiento, :frente, :familiasId, :representanteId, :torneoId)");
 

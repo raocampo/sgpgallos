@@ -182,7 +182,7 @@ include("../../templates/header.sub.php");
 
                                     //Verficar si la pareja ya ha sido seleccionada
                                     if (parejaSeleccionada($galloL, $galloV, $conexion)) {
-                                        echo "La pareja ya ha sido seleccionada previamente!!!";
+                                        echo "<script>alert ('La pareja ya ha sido seleccionada previamente!!!');</script>";
                                         continue; //Saltar a la siguiente iteración del bucle
                                     }
 
