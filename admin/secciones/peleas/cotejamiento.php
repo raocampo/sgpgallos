@@ -42,6 +42,10 @@ if (isset($_GET['txtID'])) {
     $sentencia = $conexion->prepare("DELETE FROM coteja WHERE ID_Coteja=:id");
     $sentencia->bindParam(":id", $txtID);
     $sentencia->execute();
+
+    // Actualizar la variable de sesión $_SESSION['parejasCotejadas']
+    // para que la pareja liberada se habilite nuevamente en los checkboxes
+    $_SESSION['parejasCotejadas'] = array_diff($_SESSION['parejasCotejadas'], array($txtID));
 }
 
 //Con esta sentencias seleccionamos los datos de la tabla de familias
@@ -300,13 +304,14 @@ include("../../templates/header.sub.php");
                                         <td><?php echo $cotManual['pesoRealV']; ?></td>
                                         <td><?php echo $cotManual['nacimientoV']; ?></td>
                                         <td><input type="checkbox" name="peleas[]" value="<?php echo $cotManual['ID_Coteja']; ?>"></td>
+                                        <td><a name="coteja" id="" class="btn btn-success" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja'];?>" role="button"><i class="bi bi-trash3-fill"></i></a></td>
                                     </tr>
                                 <?php } ?>
                             </tbody>
                         </table>
-                        <div class="d-flex">
-                            <a name="coteja" id="" class="btn btn-success" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja'];?>" role="button">Liberar</a>
-                        </div>
+                        <!--<div class="d-flex">
+                            <a name="coteja" id="" class="btn btn-success" href="cotejamiento.php?txtID=<?php //echo  $cotManual['ID_Coteja'];?>" role="button"><i class="bi bi-trash3-fill"></i></a>
+                        </div>-->
 
                     </div>
                     <div class="card d-flex flex-row table-responsive overflow-auto">
