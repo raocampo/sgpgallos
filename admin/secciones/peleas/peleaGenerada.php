@@ -111,14 +111,14 @@ function imprimirTabla() {
                             <th>Anillo</th>
                             <th>Criadero</th>
                             <th>Frente</th>
-                            <th>Tamaño Real</th>
-                            <th>Peso Real</th>
+                            <th>Altura</th>
+                            <th>Peso</th>
                             <th></th>
                             <th>Anillo</th>
                             <th>Criadero</th>
                             <th>Frente</th>
-                            <th>Tamaño Real</th>
-                            <th>Peso Real</th>
+                            <th>Altura</th>
+                            <th>Peso</th>
                             <th>Acción</th>
                         </tr>
                     </thead>

@@ -35,17 +35,35 @@ if ($total_gallos % 2 != 0) {
     $total_gallos--;
 }
 
+//Se elimina la pareja cotejada manualmente de la tabla coteja
+//Se activa el checkbox para volver a seleccionar
 if (isset($_GET['txtID'])) {
+    // Obtener los IDs de los gallos involucrados en la pareja cotejada
+    $sentenciaID = $conexion->prepare("SELECT galloL, gallov FROM coteja WHERE ID_Coteja=:id");
+    $sentenciaID->bindParam(":id", $_GET['txtID']);
+    $sentenciaID->execute();
+    $parejaIDs = $sentenciaID->fetch(PDO::FETCH_ASSOC);
 
-    $txtID = (isset($_GET['txtID'])) ? $_GET['txtID'] : "";
+    // Realizar la eliminación de la pareja cotejada según el ID recibido
+    $txtID = $_GET['txtID'];
 
     $sentencia = $conexion->prepare("DELETE FROM coteja WHERE ID_Coteja=:id");
     $sentencia->bindParam(":id", $txtID);
     $sentencia->execute();
 
-    // Actualizar la variable de sesión $_SESSION['parejasCotejadas']
-    // para que la pareja liberada se habilite nuevamente en los checkboxes
-    $_SESSION['parejasCotejadas'] = array_diff($_SESSION['parejasCotejadas'], array($txtID));
+    // Verificar y eliminar los IDs de los gallos de $_SESSION['parejasCotejadas'] si están presentes
+    $galloL_ID = $parejaIDs['galloL'];
+    $gallov_ID = $parejaIDs['gallov'];
+
+    $index_galloL = array_search($galloL_ID, $_SESSION['parejasCotejadas']);
+    if ($index_galloL !== false) {
+        unset($_SESSION['parejasCotejadas'][$index_galloL]);
+    }
+
+    $index_gallov = array_search($gallov_ID, $_SESSION['parejasCotejadas']);
+    if ($index_gallov !== false) {
+        unset($_SESSION['parejasCotejadas'][$index_gallov]);
+    }
 }
 
 //Con esta sentencias seleccionamos los datos de la tabla de familias
@@ -197,7 +215,7 @@ include("../../templates/header.sub.php");
                             <div class="text-center">
                                 <button type="submit" id="btnCotejaManual" class="btn btn-success m-2">Cotejar Manualmente</button>
                             </div>
-                            <table class="table flex-fill text-center">
+                            <table class="table flex-fill text-center" id="tabla_id">
                                 <thead class="table-primary">
                                     <tr>
                                         <th>ITEM</th>
@@ -304,7 +322,7 @@ include("../../templates/header.sub.php");
                                         <td><?php echo $cotManual['pesoRealV']; ?></td>
                                         <td><?php echo $cotManual['nacimientoV']; ?></td>
                                         <td><input type="checkbox" name="peleas[]" value="<?php echo $cotManual['ID_Coteja']; ?>"></td>
-                                        <td><a name="coteja" id="" class="btn btn-success" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja'];?>" role="button"><i class="bi bi-trash3-fill"></i></a></td>
+                                        <td><a name="coteja" id="" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja'];?>"><i class="fa-solid fa-trash-can"></i></a></td>
                                     </tr>
                                 <?php } ?>
                             </tbody>
@@ -452,7 +470,7 @@ include("../../templates/header.sub.php");
                         ?>
 
 
-                            <table class="table table-sm flex-fill text-center">
+                            <table class="table table-sm flex-fill text-center" id="tabla_id">
                                 <!--<thead class="table-primary">
                                         <tr>
                                             <th>ITEM</th>
@@ -579,7 +597,7 @@ include("../../templates/header.sub.php");
             </div>
 
             <div class="d-flex container-fluid ">
-                <form action="">
+                <form class="contenidoGallosLibres" action="" enctype="multipart/form-data" method="post">
                     <div class="d-flex col-auto table-responsive">
                         <table class="table text-center">
                             <thead class="table-primary">

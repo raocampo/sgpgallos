@@ -58,7 +58,7 @@ include ("../../templates/header.sub.php");
     </div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table">
+            <table class="table" id="tabla_id">
                 <thead class="table-primary">
                     <tr>
                         <th scope="col">ID</th>

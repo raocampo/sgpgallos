@@ -22,8 +22,8 @@
       jQuery("#tabla_id").DataTable({
         "pageLength":3,
         lengthMenu:[
-          [3,10,25,50],
-          [3,10,25,50]
+          [25,50,75,100],
+          [25,50,75,100]
         ],
         "language":{
           "url": "idiomas/espaniol.json"

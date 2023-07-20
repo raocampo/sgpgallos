@@ -68,12 +68,12 @@ include("../../templates/header.subRep.php");
             <th>Anillo</th>
             <th>Criadero</th>
             <th>Frente</th>
-            <th>Peso Real</th>
+            <th>Peso</th>
             <th></th>
             <th>Anillo</th>
             <th>Criadero</th>
             <th>Frente</th>
-            <th>Peso Real</th>
+            <th>Peso</th>
             <th>RESULTADO</th>
         </tr>
     </thead>
