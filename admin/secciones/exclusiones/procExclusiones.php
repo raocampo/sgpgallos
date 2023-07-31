@@ -25,20 +25,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $exclusionesExistente = $sentenciaVerificacion->fetchColumn();
 
         if ($exclusionesExistente) {
-            echo "Estas familias ya están excluidas en este torneo.";
+            echo "<script>alert('Estas familias ya están excluidas en este torneo.')</script>;";
         } else {
             // Insertar las exclusiones en la tabla
             $sentencia = $conexion->prepare("INSERT INTO exclusiones (nombreFamiliaUno, nombreFamiliaDos, torneoId) VALUES (?, ?, ?)");
             $sentencia->execute([$familia1, $familia2, $torneoId]);
 
-            //echo "Las familias se han excluido correctamente.";
+            echo "<script>alert('Las familias se han excluido correctamente.')</script>;";
         }
     } else {
-        echo "Por favor, seleccione dos familias para excluir.";
+        echo "<script>alert('Por favor, seleccione dos familias para excluir.')</script>;";
     }
-} /*else {
-    echo "Acceso inválido a la página.";
-}*/
+} else {
+    echo "<script>alert('Acceso inválido a la página.')</script>;";
+}
 
 if(isset($_GET['txtID'])){
     //borra el registro llamado con el ID correspondiente
