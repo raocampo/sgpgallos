@@ -118,7 +118,7 @@ include("../../templates/header.sub.php");
                         </div>
 
                         <div class="dflex flex-row align-items-center">
-                            <div class="d-flex justify-content-center ">
+                            <div class="d-flex justify-content-center">
                                 <div class="mx-3">
                                     <label class="m-1" for="nacimiento">Mes de nacimiento</label>
                                     <input type="checkbox" name="nacimiento" id="nacimiento">
