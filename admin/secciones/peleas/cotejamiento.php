@@ -221,8 +221,9 @@ include("../../templates/header.sub.php");
                                         <th>ITEM</th>
                                         <th>Anillo</th>
                                         <th>Criadero</th>
-                                        <th>Altura</th>
                                         <th>Peso</th>
+                                        <th>Altura</th>
+                                        <th>Frente</th>
                                         <th>Mes Nac</th>
                                         <th>Seleccionar Pareja</th>
                                     </tr>
@@ -239,6 +240,7 @@ include("../../templates/header.sub.php");
                                             <td><?php echo $gallo['nombre_familia']; ?></td>
                                             <td><?php echo $gallo['pesoReal']; ?></td>
                                             <td><?php echo $gallo['tamañoReal']; ?></td>
+                                            <td><?php echo $gallo['frente']; ?></td>
                                             <td><?php echo $gallo['nacimiento']; ?></td>
                                             <td><input type="checkbox" class="checkbox-pareja" name="cotejamiento[]" value="<?php echo $gallo['ID']; ?>" <?php if ($checkboxDisabled) {
                                                                                                                                                                 echo 'disabled';
@@ -276,15 +278,17 @@ include("../../templates/header.sub.php");
                             <thead class="table-primary">
                                 <tr>
                                     <th>ITEM</th>
-                                    <th>Anillo</th>
+                                    <th>AnilloL</th>
                                     <th>GalloL</th>
                                     <th>AlturaL</th>
                                     <th>PesoL</th>
+                                    <th>FrenteL</th>
                                     <th>MesNacL</th>
-                                    <th>Anillo</th>
+                                    <th>AnilloV</th>
                                     <th>GalloV</th>
                                     <th>AlturaV</th>
                                     <th>PesoV</th>
+                                    <th>FrenteV</th>
                                     <th>MesNacV</th>
                                     <th>Seleccionar</th>
                                     <th>Acción</th>
@@ -293,8 +297,8 @@ include("../../templates/header.sub.php");
                             <tbody>
                                 <?php
                                 $sentencia = $conexion->prepare("SELECT c.ID_Coteja, c.galloL, c.galloV, c.estado,
-                                        gl.anillo AS anilloL, gl.pesoReal AS pesoRealL, gl.tamañoReal AS tamañoRealL, gl.nacimiento AS nacimientoL, fl.nombre AS nombre_familiaL,
-                                        gv.anillo AS anilloV, gv.pesoReal AS pesoRealV, gv.tamañoReal AS tamañoRealV, gv.nacimiento AS nacimientoV, fv.nombre AS nombre_familiaV
+                                        gl.anillo AS anilloL, gl.pesoReal AS pesoRealL, gl.tamañoReal AS tamañoRealL, gl.frente AS frenteL, gl.nacimiento AS nacimientoL, fl.nombre AS nombre_familiaL,
+                                        gv.anillo AS anilloV, gv.pesoReal AS pesoRealV, gv.tamañoReal AS tamañoRealV, gv.frente AS frenteV, gv.nacimiento AS nacimientoV, fv.nombre AS nombre_familiaV
                                         FROM coteja c
                                         INNER JOIN gallos gl ON c.galloL = gl.ID
                                         INNER JOIN gallos gv ON c.galloV = gv.ID
@@ -313,11 +317,13 @@ include("../../templates/header.sub.php");
                                         <td><?php echo $cotManual['nombre_familiaL']; ?></td>
                                         <td><?php echo $cotManual['tamañoRealL']; ?></td>
                                         <td><?php echo $cotManual['pesoRealL']; ?></td>
+                                        <td><?php echo $cotManual['frenteL']; ?></td>
                                         <td><?php echo $cotManual['nacimientoL']; ?></td>
                                         <td><?php echo $cotManual['anilloV']; ?></td>
                                         <td><?php echo $cotManual['nombre_familiaV']; ?></td>
                                         <td><?php echo $cotManual['tamañoRealV']; ?></td>
                                         <td><?php echo $cotManual['pesoRealV']; ?></td>
+                                        <td><?php echo $cotManual['frenteV']; ?></td>
                                         <td><?php echo $cotManual['nacimientoV']; ?></td>
                                         <td><input type="checkbox" name="peleas[]" value="<?php echo $cotManual['ID_Coteja']; ?>"></td>
                                         <td><a name="coteja" id="" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja']; ?>"><i class="fa-solid fa-trash-can"></i></a></td>
@@ -507,11 +513,13 @@ include("../../templates/header.sub.php");
                                             <td><?php echo $familia1['nombre']; ?></td>
                                             <td><?php echo $gallo1['tamañoReal']; ?></td>
                                             <td><?php echo $gallo1['pesoReal']; ?></td>
+                                            <td><?php echo $gallo1['frente']; ?></td>
                                             <td><?php echo $gallo1['nacimiento']; ?></td>
                                             <td><?php echo $gallo2['anillo']; ?></td>
                                             <td><?php echo $familia2['nombre']; ?></td>
                                             <td><?php echo $gallo2['tamañoReal']; ?></td>
                                             <td><?php echo $gallo2['pesoReal']; ?></td>
+                                            <td><?php echo $gallo2['frente']; ?></td>
                                             <td><?php echo $gallo2['nacimiento']; ?></td>
                                             <td><input type="checkbox" name="peleas[]" value="<?php echo $gallo1['ID'] . '-' . $gallo2['ID']; ?>"></td>
                                         </tr>
@@ -554,11 +562,13 @@ include("../../templates/header.sub.php");
                                             <td><?php echo $gallo1['nombre_familia']; ?></td>
                                             <td><?php echo $gallo1['tamañoReal']; ?></td>
                                             <td><?php echo $gallo1['pesoReal']; ?></td>
+                                            <td><?php echo $gallo1['frente']; ?></td>
                                             <td><?php echo $gallo1['nacimiento']; ?></td>
                                             <td><?php echo $gallo2['anillo']; ?></td>
                                             <td><?php echo $gallo2['nombre_familia']; ?></td>
                                             <td><?php echo $gallo2['tamañoReal']; ?></td>
                                             <td><?php echo $gallo2['pesoReal']; ?></td>
+                                            <td><?php echo $gallo2['frente']; ?></td>
                                             <td><?php echo $gallo2['nacimiento']; ?></td>
                                             <td><input type="checkbox" name="peleas[]" value="<?php echo $gallo1['ID'] . '-' . $gallo2['ID']; ?>"></td>
                                         </tr>
@@ -644,6 +654,7 @@ include("../../templates/header.sub.php");
                                         <th>Criadero</th>
                                         <th>Tamaño</th>
                                         <th>Peso</th>
+                                        <th>Frente</th>
                                         <th>Mes Nac</th>
                                         <th>Estado</th>
                                     </tr>
@@ -668,6 +679,8 @@ include("../../templates/header.sub.php");
                                             <td><?php echo $galloLibre['tamañoReal'];
                                                 ?></td>
                                             <td><?php echo $galloLibre['pesoReal'];
+                                                ?></td>
+                                            <td><?php echo $galloLibre['frente'];
                                                 ?></td>
                                             <td><?php echo $galloLibre['nacimiento'];
                                                 ?></td>
