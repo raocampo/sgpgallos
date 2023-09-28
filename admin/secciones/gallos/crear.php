@@ -56,13 +56,13 @@ if($_POST){
 }
 
 //Con esta sentencias seleccionamos los datos de la tabla de familias
-$sentencia=$conexion->prepare("SELECT * FROM familias WHERE codigo");
+$sentencia=$conexion->prepare("SELECT * FROM familias WHERE codigo ORDER BY nombre ASC");
 $sentencia->execute();
 
 $familias=$sentencia->fetchAll(PDO::FETCH_ASSOC);
 
 //Con esta sentencias seleccionamos los datos de la tabla de representantes
-$sentencia=$conexion->prepare("SELECT * FROM representante WHERE ID");
+$sentencia=$conexion->prepare("SELECT * FROM representante WHERE ID ORDER BY nombreCompleto ASC ");
 $sentencia->execute();
 
 $representantes=$sentencia->fetchAll(PDO::FETCH_ASSOC);

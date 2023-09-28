@@ -13,8 +13,8 @@ if(isset($_GET['txtID'])){
     $sentencia->execute();
 }
 
-//Con esta sentencias seleccionamos los datos de la tabla de servicios
-$sentencia=$conexion->prepare("SELECT * FROM `representante`");
+//Con esta sentencias seleccionamos los datos de la tabla de representantes
+$sentencia=$conexion->prepare("SELECT * FROM `representante` ORDER BY nombreCompleto ASC ");
 $sentencia->execute();
 
 $lista_rep=$sentencia->fetchAll(PDO::FETCH_ASSOC);

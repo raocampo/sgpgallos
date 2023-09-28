@@ -20,13 +20,13 @@
     jQuery.noConflict();
     jQuery(document).ready( function(){
       jQuery("#tabla_id").DataTable({
-        "pageLength":3,
+        "pageLength":25,
         lengthMenu:[
-          [25,50,75,100],
-          [25,50,75,100]
+          [50,75,100],
+          [50,75,100]
         ],
         "language":{
-          "url": "idiomas/espaniol.json"
+          "url": "../idiomas/espaniol.json"
         }
       });
 

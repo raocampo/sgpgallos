@@ -5,7 +5,8 @@ include("../../bd.php");
 
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
-  }
+}
+$item = 0;
 $nombreTorneo = $_SESSION['nombreTorneo'];
 $torneoId = $_SESSION['torneoId'];
 
@@ -76,7 +77,8 @@ include ("../../templates/header.sub.php");
                 <tbody>
                     <?php foreach($lista_gallos as $registro){ ?>
                     <tr class="">
-                        <td><?php echo $registro['ID'];?></td>
+                        <td><?php echo $item += 1; ?></td>
+                        <!--<td><?php //echo $registro['ID'];?></td>-->
                         <td><?php echo $registro['anillo'];?></td>
                         <td><?php echo $registro['pesoReal'];?></td>
                         <td><?php echo $registro['tamañoReal'];?></td>
