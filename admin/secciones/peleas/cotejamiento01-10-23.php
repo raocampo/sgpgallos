@@ -335,96 +335,139 @@ include("../../templates/header.sub.php");
 
                     <div class="card d-flex flex-row table-responsive overflow-auto">
                         <?php
-                            $ids_cotejados = [];
-                            $parejas = [];
-                            $gallosLibres = [];
+                        $ids_cotejados = [];
+                        $parejas = [];
+                        $gallosLibres = [];
+                        $familiaID1 = [];
+                        $familiaID2 = [];
 
-                            if ((!empty($toleranciaPeso) && $toleranciaPeso != 0) && (!empty($toleranciaAltura) && $toleranciaAltura != 0)):
-                            // Obtener todos los gallos que no están excluidos
-                            $gallos = $conexion->prepare("SELECT * FROM gallos                                     WHERE ID NOT IN (
-                                            SELECT DISTINCT galloL FROM coteja WHERE torneoId = :torneoId
-                                            UNION
-                                            SELECT DISTINCT gallov FROM coteja WHERE torneoId = :torneoId
-                                        )
-                                        AND torneoId = :torneoId
-                                        ORDER BY pesoReal, tamañoReal
-                                    ");
-                                    $gallos->bindParam(":torneoId", $torneoId);
-                                    $gallos->execute();
-                                    $gallos = $gallos->fetchAll(PDO::FETCH_ASSOC);
+                        if ((!empty($toleranciaPeso) && $toleranciaPeso != 0) && (!empty($toleranciaAltura) && $toleranciaAltura != 0)) :
+                            $gallos = $conexion->prepare("SELECT * FROM gallos
+                                WHERE familiasId <> 0
+                                    AND ID NOT IN (
+                                        SELECT DISTINCT galloL FROM coteja WHERE torneoId = :torneoId
+                                        UNION
+                                        SELECT DISTINCT gallov FROM coteja WHERE torneoId = :torneoId
+                                    )
+                                    AND torneoId = :torneoId
+                                ORDER BY pesoReal, tamañoReal
+                            ");
+                            $gallos->bindParam(":torneoId", $torneoId);
+                            $gallos->execute();
+                            $gallos = $gallos->fetchAll(PDO::FETCH_ASSOC);
 
-                                    $cantidadGallos = count($gallos);
+                            $cantidadGallos = count($gallos);
 
-                                    $nacimiento = isset($_POST['nacimiento']) ? true : false;
+                            $nacimiento = isset($_POST['nacimiento']) ? true : false;
+                            $exclusion = isset($_POST['exclusion']) ? true : false;
 
-                                    for ($index1 = 0; $index1 < $cantidadGallos; $index1++) {
-                                        $gallo1 = $gallos[$index1];
-                                        $familiaID1 = $gallo1['familiasId'];
-                                        $galloPeso1 = round($gallo1['pesoReal'], 2); // Redondea a 2 decimales
-                                        $galloAltura1 = round($gallo1['tamañoReal'], 2); // Redondea a 2 decimales
-                                        $galloNacimiento1 = intval($gallo1['nacimiento']);
+                            $excluidas = [];
 
-                                        // Verificar si el gallo ya fue cotejado manualmente
-                                        if (in_array($gallo1['ID'], $gallosSeleccionados)) {
-                                            continue;
-                                        }
+                            if ($exclusion) {
+                                $sentencia = $conexion->prepare("SELECT nombreFamiliaUno, nombreFamiliaDos FROM exclusiones WHERE torneoId = :torneoId");
+                                $sentencia->bindParam(":torneoId", $torneoId);
+                                $sentencia->execute();
+                                $exclusiones = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 
-                                        $parejaEncontrada = false;
-                                        $mejorDiferenciaPeso = $toleranciaPeso; // Inicializar con la máxima tolerancia de peso
-                                        $mejorPareja = null;
+                                foreach ($exclusiones as $exclusion) {
+                                    $nombreFamiliaUno = $exclusion['nombreFamiliaUno'];
+                                    $nombreFamiliaDos = $exclusion['nombreFamiliaDos'];
 
-                                        for ($index2 = $index1 + 1; $index2 < $cantidadGallos; $index2++) {
-                                            $gallo2 = $gallos[$index2];
-                                            $familiaID2 = $gallo2['familiasId'];
+                                    $excluidas[] = $nombreFamiliaUno;
+                                    $excluidas[] = $nombreFamiliaDos;
+                                }
+                            }
 
-                                            $galloPeso2 = round($gallo2['pesoReal'], 2); // Redondea a 2 decimales
-                                            $galloAltura2 = round($gallo2['tamañoReal'], 2); // Redondea a 2 decimales
-                                            $galloNacimiento2 = intval($gallo2['nacimiento']);
+                            for ($index1 = 0; $index1 < $cantidadGallos; $index1++) {
+                                $gallo1 = $gallos[$index1];
+                                $familiaID1 = $gallo1['familiasId'];
+                                $galloPeso1 = round($gallo1['pesoReal'], 2); // Redondea a 2 decimales
+                                $galloAltura1 = round($gallo1['tamañoReal'], 2); // Redondea a 2 decimales
+                                $galloNacimiento1 = intval($gallo1['nacimiento']);
 
-                                            // Verificar si ambos gallos pertenecen a familias excluidas
-                                            $ambosExcluidos = in_array($familiaID1, $excluidas) && in_array($familiaID2, $excluidas);
+                                // Verificar si el gallo ya fue cotejado manualmente
+                                if (in_array($gallo1['ID'], $gallosSeleccionados)) {
+                                    continue;
+                                }
 
-                                            $diferenciaPeso = abs($galloPeso1 - $galloPeso2);
-                                            $diferenciaAltura = abs($galloAltura1 - $galloAltura2);
+                                if ($exclusion && in_array($familiaID1, $excluidas)) {
+                                    $gallosLibres[] = $gallo1;
+                                    continue;
+                                }
+                                $parejaEncontrada = false;
+                                $mejorDiferenciaPeso = $toleranciaPeso; // Inicializar con la máxima tolerancia de peso
+                                $mejorPareja = null;
 
-                                            if (
-                                                ($ambosExcluidos || !$ambosExcluidos) && // Comprobar la condición de exclusión
-                                                $diferenciaPeso <= $toleranciaPeso
-                                                && $diferenciaAltura <= $toleranciaAltura
-                                                && $diferenciaPeso < $mejorDiferenciaPeso
-                                                && !in_array($gallo1['ID'], $ids_cotejados)
-                                                && !in_array($gallo2['ID'], $ids_cotejados)
-                                                && (!$nacimiento || ($galloNacimiento1 == $galloNacimiento2
-                                                    || (abs(intval($galloNacimiento1) - intval($galloNacimiento2)) == 1 && intval($galloNacimiento1) < intval($galloNacimiento2))
-                                                ))
-                                            ) {
-                                                $mejorDiferenciaPeso = $diferenciaPeso;
-                                                $mejorPareja = [$gallo1, $gallo2];
-                                                $parejaEncontrada = true;
-                                            }
-                                        }
+                                for ($index2 = $index1 + 1; $index2 < $cantidadGallos; $index2++) {
+                                    $gallo2 = $gallos[$index2];
 
-                                        if ($parejaEncontrada) {
-                                            $parejas[] = $mejorPareja;
-                                            $ids_cotejados[] = $mejorPareja[0]['ID'];
-                                            $ids_cotejados[] = $mejorPareja[1]['ID'];
-                                        } else {
-                                            // Si no se encuentra pareja, el gallo está libre
-                                            $gallosLibres[] = $gallo1;
-                                        }
+                                    if ($gallo1['familiasId'] == $gallo2['familiasId']) {
+                                        continue;
                                     }
 
-                                    // Ordenar las parejas por pesoReal
-                                    usort($parejas, function ($a, $b) {
-                                        $peso1 = $a[0]['pesoReal'];
-                                        $peso2 = $b[0]['pesoReal'];
+                                    $galloPeso2 = round($gallo2['pesoReal'], 2); // Redondea a 2 decimales
+                                    $galloAltura2 = round($gallo2['tamañoReal'], 2); // Redondea a 2 decimales
+                                    $galloNacimiento2 = intval($gallo2['nacimiento']);
 
-                                        if ($peso1 == $peso2) {
-                                            return 0;
-                                        }
+                                    if ($exclusion && (in_array($familiaID2, $excluidas) || in_array($familiaID1, $excluidas))) {
+                                        continue;
+                                    }
 
-                                        return ($peso1 < $peso2) ? -1 : 1;
-                                    });
+                                    $diferenciaPeso = abs($galloPeso1 - $galloPeso2);
+                                    $diferenciaAltura = abs($galloAltura1 - $galloAltura2);
+
+                                    if (
+                                        $diferenciaPeso <= $toleranciaPeso
+                                        && $diferenciaAltura <= $toleranciaAltura
+                                        && $diferenciaPeso < $mejorDiferenciaPeso
+                                        && !in_array($gallo1['ID'], $ids_cotejados)
+                                        && !in_array($gallo2['ID'], $ids_cotejados)
+                                        && (!$nacimiento || ($galloNacimiento1 == $galloNacimiento2
+                                            || (abs(intval($galloNacimiento1) - intval($galloNacimiento2)) == 1 && intval($galloNacimiento1) < intval($galloNacimiento2))
+                                        ))
+                                    ) {
+                                        $mejorDiferenciaPeso = $diferenciaPeso;
+                                        $mejorPareja = [$gallo1, $gallo2];
+                                        $parejaEncontrada = true;
+                                    }
+                                }
+
+                                if ($parejaEncontrada) {
+                                    $parejas[] = $mejorPareja;
+                                    $ids_cotejados[] = $mejorPareja[0]['ID'];
+                                    $ids_cotejados[] = $mejorPareja[1]['ID'];
+
+                                    //$index1 = 0;
+                                    //$parejaEncontradaTolerancia = true;
+                                    //break; //Salir del bucle al encontrar pareja
+                                } elseif (!in_array($gallo1['ID'], $ids_cotejados)) {
+                                    $gallosLibres[] = $gallo1;
+                                }/*elseif (!in_array($gallo1['ID'], $ids_cotejados)) {
+                                    if(!$parejaEncontradaTolerancia){
+                                        $gallosLibres[] = $gallo1;
+                                    }
+                                    
+                                }*/
+                            }
+
+                            /* Asignar los gallos no cotejados a gallosLibres
+                            foreach ($gallos as $gallo) {
+                                if (!in_array($gallo['ID'], $ids_cotejados)) {
+                                    $gallosLibres[] = $gallo;
+                                }
+                            }*/
+
+                            // Ordenar las parejas por pesoReal
+                            usort($parejas, function ($a, $b) {
+                                $peso1 = $a[0]['pesoReal'];
+                                $peso2 = $b[0]['pesoReal'];
+
+                                if ($peso1 == $peso2) {
+                                    return 0;
+                                }
+
+                                return ($peso1 < $peso2) ? -1 : 1;
+                            });
                         ?>
 
 
