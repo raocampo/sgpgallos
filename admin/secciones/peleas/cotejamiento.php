@@ -356,6 +356,8 @@ include("../../templates/header.sub.php");
                                     $cantidadGallos = count($gallos);
 
                                     $nacimiento = isset($_POST['nacimiento']) ? true : false;
+                                    $exclusion = isset($_POST['exclusion']) ? true : false;
+                                    $excluidas = [];
 
                                     for ($index1 = 0; $index1 < $cantidadGallos; $index1++) {
                                         $gallo1 = $gallos[$index1];
