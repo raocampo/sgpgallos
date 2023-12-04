@@ -391,7 +391,7 @@ include("../../templates/header.sub.php");
                                 }
 
                                 if ($exclusion && in_array($familiaID1, $excluidas)) {
-                                    $gallosLibres[] = $gallo1;
+                                //    $gallosLibres[] = $gallo1;
                                     continue;
                                 }
                                 $parejaEncontrada = false;
@@ -468,7 +468,7 @@ include("../../templates/header.sub.php");
 
                                 return ($peso1 < $peso2) ? -1 : 1;
                             });
-                        ?>0
+                        ?>
 
 
                             <table class="table table-sm flex-fill text-center" id="tabla_id">
