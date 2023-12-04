@@ -3,7 +3,7 @@
 $servidor="localhost";
 $baseDatos="sgpgallos";
 $usuario="root";
-$clave=1234;
+$clave= "";
 
 try{
 

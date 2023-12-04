@@ -17,7 +17,10 @@ if($_POST){
 	$usuario=(isset($_POST['usuario']))?$_POST['usuario']:"";
 	$clave=(isset($_POST['clave']))?$_POST['clave']:"";
 
-	//Con esta sentencias seleccionamos los datos de la tabla de servicios
+	//Con esta sentencias verificamos el usuario y contraseña para mysql
+	//$sentencia = $conexion->prepare("SELECT MAX(ID) as ID, apodo, clave, count(*) as n_usuario FROM usuarios WHERE apodo=:usuario AND clave=:clave");
+
+	//Con esta sentencias verificamos el usuario y contraseña para mariadb
 	$sentencia=$conexion->prepare("SELECT *, count(*) as n_usuario FROM usuarios WHERE apodo=:usuario AND clave=:clave");
 
 	$sentencia->bindParam(":usuario",$usuario);
