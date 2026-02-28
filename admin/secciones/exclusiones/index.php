@@ -1,69 +1,54 @@
 <?php
-error_reporting(E_ERROR | E_WARNING | E_PARSE);
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
-}
+require_auth();
+start_secure_session();
+$context = require_tournament_context('Seleccione un torneo antes de gestionar exclusiones.');
+$torneoId = $context['torneoId'];
 
-$nombreTorneo = $_SESSION['nombreTorneo'];
-$torneoId = $_SESSION['torneoId'];
+$familias = $conexion->query('SELECT codigo, nombre FROM familias ORDER BY nombre ASC')->fetchAll();
 
-// Obtener las familias disponibles desde la base de datos
-$sentencia = $conexion->prepare("SELECT * FROM familias");
-$sentencia->execute();
-$familias = $sentencia->fetchAll(PDO::FETCH_ASSOC);
-
-include("../../templates/header.sub.php");
+include __DIR__ . '/../../templates/header.sub.php';
 ?>
 
-<div class="container text-center">
-    <div class="row">
-        <div class="col-4">
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-header">Nueva exclusion</div>
+            <div class="card-body">
+                <form action="procExclusiones.php" method="post" class="row g-3">
+                    <?php echo csrf_input(); ?>
 
-        </div>
-        <div class="card col-4 ">
-            <div class="card-header">
-                <h2>Exclusiones</h2>
-            </div>
-            <div class="card-body d-flex justify-content-center ">
-                <form action="procExclusiones.php" method="POST">
-
-                    <p>Seleccione las familias a excluir:</p>
-
-                    <div>
-                        <label class="m-3" for="familia1">Familia 1:</label>
-                        <select name="familia1" id="familia1">
-                            <option value="">Seleccione una familia</option>
-                            <?php foreach ($familias as $familia) : ?>
-                                <option value="<?php echo $familia['codigo']; ?>"><?php echo $familia['nombre']; ?></option>
+                    <div class="col-md-6">
+                        <label class="form-label" for="familia1">Criadero 1</label>
+                        <select class="form-select" name="familia1" id="familia1" required>
+                            <option value="">Seleccione</option>
+                            <?php foreach ($familias as $familia): ?>
+                                <option value="<?php echo e((string) $familia['codigo']); ?>"><?php echo e($familia['nombre']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
 
-                    <div>
-                        <label class="m-3" for="familia2">Familia 2:</label>
-                        <select name="familia2" id="familia2">
-                            <option value="">Seleccione una familia</option>
-                            <?php foreach ($familias as $familia) : ?>
-                                <option value="<?php echo $familia['codigo']; ?>"><?php echo $familia['nombre']; ?></option>
+                    <div class="col-md-6">
+                        <label class="form-label" for="familia2">Criadero 2</label>
+                        <select class="form-select" name="familia2" id="familia2" required>
+                            <option value="">Seleccione</option>
+                            <?php foreach ($familias as $familia): ?>
+                                <option value="<?php echo e((string) $familia['codigo']); ?>"><?php echo e($familia['nombre']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="text-center">
-                        <button class="btn btn-success mt-3" type="submit">Agregar exclusión</button>
 
-                        <a name="" id="" class="btn btn-info mt-3" href="procExclusiones.php" role="button">Ir a Excluidos</a>
+                    <div class="col-12 d-flex gap-2">
+                        <button class="btn btn-success" type="submit">Guardar exclusion</button>
+                        <a class="btn btn-outline-primary" href="procExclusiones.php">Ver exclusiones</a>
                     </div>
-
                 </form>
             </div>
         </div>
-
     </div>
-
-
 </div>
 
-<?php include("../../templates/footer.php"); ?>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>

@@ -1,107 +1,113 @@
-<?php 
+<?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if(isset($_GET['txtID'])){
-    //En esta sentencias se recuperan los datos a editar con el ID que se escoja
-    $txtID=(isset($_GET['txtID']))?$_GET['txtID']:"";
+require_auth();
 
-    $sentencia=$conexion->prepare("SELECT * FROM `torneos` WHERE ID=:id");
-    $sentencia->bindParam(":id",$txtID);
-    $sentencia->execute();
+$txtID = isset($_GET['txtID']) ? (int) $_GET['txtID'] : 0;
+$tipos = ['Nacional', 'Provincial', 'Local', 'Abierto', 'Prueba'];
 
-    $registro=$sentencia->fetch(PDO::FETCH_LAZY);
-
-    $nombre=$registro['nombre'];
-    $fechaInicio=$registro['fecha_inicio'];
-    $fechaFin=$registro['fecha_fin'];
-    $tipoTorneo=$registro['tipoTorneo'];
+if ($txtID <= 0) {
+    set_flash('warning', 'Torneo no valido.');
+    redirect_to('secciones/torneos/');
 }
 
-if($_POST){
+$consulta = $conexion->prepare('SELECT * FROM torneos WHERE ID = :id');
+$consulta->bindValue(':id', $txtID, PDO::PARAM_INT);
+$consulta->execute();
+$registro = $consulta->fetch();
 
-  $txtID=(isset($_GET['txtID']))?$_GET['txtID']:"";
-  $nombre=(isset($_POST['nombre']))?$_POST['nombre']:"";
-  $fechaInicio=(isset($_POST['fechaInicio']))?$_POST['fechaInicio']:"";
-  $fechaFin=(isset($_POST['fechaFin']))?$_POST['fechaFin']:"";
-  $tipoTorneo=(isset($_POST['tipoTorneo']))?$_POST['tipoTorneo']:"";
-
-  $sentencia=$conexion->prepare("UPDATE `torneos` SET nombre=:nombre, fecha_inicio=:fechaInicio, fecha_fin=:fechaFin, tipoTorneo=:tipoTorneo WHERE ID=:id");
-
-  $sentencia->bindParam(":nombre",$nombre);
-  $sentencia->bindParam(":fechaInicio",$fechaInicio);
-  $sentencia->bindParam(":fechaFin",$fechaFin);
-  $sentencia->bindParam(":tipoTorneo",$tipoTorneo);
-  $sentencia->bindParam(":id",$txtID);
-
-  $sentencia->execute();
-  
-  if($sentencia === TRUE){
-    echo "Cambios guardados";
-  }else{
-    echo "No se pudo actualizar. ";
-    print_r($sentencia->errorInfo());
-  } 
-
-  $mensaje="Se edito el registro...!";
-  header("Location:index.php?mensaje= ".$mensaje);
-
+if (!$registro) {
+    set_flash('warning', 'Torneo no encontrado.');
+    redirect_to('secciones/torneos/');
 }
 
-include ("../../templates/header.php");?>
+$valores = [
+    'nombre' => $registro['nombre'],
+    'fechaInicio' => $registro['fecha_inicio'],
+    'fechaFin' => $registro['fecha_fin'],
+    'tipoTorneo' => $registro['tipoTorneo'],
+];
 
+$error = '';
 
-<div class="card">
-    <div class="card-header">
-        Editar Torneos
-    </div>
-    
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
+
+    $valores['nombre'] = post('nombre');
+    $valores['fechaInicio'] = post('fechaInicio');
+    $valores['fechaFin'] = post('fechaFin');
+    $valores['tipoTorneo'] = post('tipoTorneo');
+
+    if ($valores['nombre'] === '' || $valores['fechaInicio'] === '' || $valores['tipoTorneo'] === '') {
+        $error = 'Complete los campos obligatorios.';
+    } elseif ($valores['fechaFin'] !== '' && $valores['fechaFin'] < $valores['fechaInicio']) {
+        $error = 'La fecha de cierre no puede ser menor a la fecha de inicio.';
+    } else {
+        $actualiza = $conexion->prepare('UPDATE torneos SET nombre = :nombre, fecha_inicio = :inicio, fecha_fin = :fin, tipoTorneo = :tipo WHERE ID = :id');
+        $actualiza->bindValue(':nombre', $valores['nombre']);
+        $actualiza->bindValue(':inicio', $valores['fechaInicio']);
+        $actualiza->bindValue(':fin', $valores['fechaFin'] !== '' ? $valores['fechaFin'] : $valores['fechaInicio']);
+        $actualiza->bindValue(':tipo', $valores['tipoTorneo']);
+        $actualiza->bindValue(':id', $txtID, PDO::PARAM_INT);
+        $actualiza->execute();
+
+        set_flash('success', 'Torneo actualizado correctamente.');
+        redirect_to('secciones/torneos/');
+    }
+}
+
+include __DIR__ . '/../../templates/header.php';
+?>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header">Editar torneo</div>
     <div class="card-body">
-        
-    <form action="" enctype="multipart/form-data" method="post">
+        <?php if ($error !== ''): ?>
+            <div class="alert alert-danger"><?php echo e($error); ?></div>
+        <?php endif; ?>
 
-        <div class="mb-3">
-          <label for="txtID" class="form-label">ID:</label>
-          <input readonly value="<?php echo $txtID;?>" type="text"
-              class="form-control" name="txtID" id="txtID" aria-describedby="helpId" placeholder="ID">
-        </div>
+        <form method="post" class="row g-3">
+            <?php echo csrf_input(); ?>
 
-        <div class="mb-3">
-          <label for="nombre" class="form-label">Nombre</label>
-          <input value="<?php echo $nombre;?>" type="text"
-            class="form-control" name="nombre" id="nombre" aria-describedby="helpId" placeholder="Nombre de Torneo">
-        </div>
+            <div class="col-md-2">
+                <label class="form-label" for="txtID">ID</label>
+                <input class="form-control" type="text" id="txtID" value="<?php echo e((string) $txtID); ?>" readonly>
+            </div>
 
-        <div class="mb-3">
-          <label for="fechaInicio" class="form-label">Fecha Inicio</label>
-          <input value="<?php echo $fechaInicio;?>" type="date"
-            class="form-control" name="fechaInicio" id="fechaInicio" aria-describedby="helpId" placeholder="Inicia">
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="nombre">Nombre</label>
+                <input class="form-control" type="text" name="nombre" id="nombre" value="<?php echo e($valores['nombre']); ?>" required>
+            </div>
 
-        <div class="mb-3">
-          <label for="fechaFin" class="form-label">Fecha Termina</label>
-          <input value="<?php echo $fechaFin;?>" type="date"
-            class="form-control" name="fechaFin" id="fechaFin" aria-describedby="helpId" placeholder="Finaliza">
-        </div>
+            <div class="col-md-4">
+                <label class="form-label" for="tipoTorneo">Tipo de torneo</label>
+                <select class="form-select" name="tipoTorneo" id="tipoTorneo" required>
+                    <option value="">Seleccione</option>
+                    <?php foreach ($tipos as $tipo): ?>
+                        <option value="<?php echo e($tipo); ?>" <?php echo $valores['tipoTorneo'] === $tipo ? 'selected' : ''; ?>><?php echo e($tipo); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
 
-        <div class="mb-3">
+            <div class="col-md-6">
+                <label class="form-label" for="fechaInicio">Fecha inicio</label>
+                <input class="form-control" type="date" name="fechaInicio" id="fechaInicio" value="<?php echo e($valores['fechaInicio']); ?>" required>
+            </div>
 
-          <label for="tipoTorneo" class="form-label">Tipo de Torneo</label>
-          <select name="tipoTorneo" id="tipoTorneo" value="<?php echo $tipoTorneo;?>"   class="form-select">
-            <option value="">Escoja</option>
-            <option value="Nacional">Nacional</option>
-            <option value="Provincial">Provincial</option>
-            <option value="Local">local</option>
-            <option value="Abierto">Abierto</option>
-            <option value="Prueba">Prueba</option>
-          </select>
-          <!--<input value="<?php #echo $tipoTorneo;?> "type="text"
-            class="form-control" name="tipoTorneo" id="tipoTorneo" aria-describedby="helpId" placeholder="Escoja el tipo">-->
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="fechaFin">Fecha fin</label>
+                <input class="form-control" type="date" name="fechaFin" id="fechaFin" value="<?php echo e($valores['fechaFin']); ?>">
+            </div>
 
-       <button type="submit" class="btn btn-success">Actualizar</button>
-       <a name="" id="" class="btn btn-primary" href="index.php" role="button">Cancelar</a>
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-success" type="submit">Actualizar</button>
+                <a class="btn btn-outline-secondary" href="index.php">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
 
-    </form>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>
 
-<?php include ("../../templates/footer.php");?>

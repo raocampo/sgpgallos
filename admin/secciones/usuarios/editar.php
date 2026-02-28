@@ -1,109 +1,135 @@
 <?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if(isset($_GET['txtID'])){
-    //En esta sentencias se recuperan los datos a editar con el ID que se escoja
-    $txtID=(isset($_GET['txtID']))?$_GET['txtID']:"";
+require_auth();
 
-    $sentencia=$conexion->prepare("SELECT * FROM usuarios WHERE ID=:id");
-    $sentencia->bindParam(":id",$txtID);
-    $sentencia->execute();
+$txtID = isset($_GET['txtID']) ? (int) $_GET['txtID'] : 0;
 
-    $registro=$sentencia->fetch(PDO::FETCH_LAZY);
-
-    $nombre=$registro['nombre'];
-    $correo=$registro['correo'];
-    $usuario=$registro['apodo'];
-    $clave=$registro['clave'];
-    $empresa=$registro['empresa'];
+if ($txtID <= 0) {
+    set_flash('warning', 'Usuario no valido.');
+    redirect_to('secciones/usuarios/');
 }
 
-if($_POST){
+$sentencia = $conexion->prepare('SELECT ID, nombre, correo, apodo, empresa FROM usuarios WHERE ID = :id');
+$sentencia->bindValue(':id', $txtID, PDO::PARAM_INT);
+$sentencia->execute();
+$registro = $sentencia->fetch();
 
-  $txtID=(isset($_GET['txtID']))?$_GET['txtID']:"";
-  $nombre=(isset($_POST['nombre']))?$_POST['nombre']:"";
-  $correo=(isset($_POST['correo']))?$_POST['correo']:"";
-  $usuario=(isset($_POST['usuario']))?$_POST['usuario']:"";
-  $clave=(isset($_POST['clave']))?$_POST['clave']:"";
-  $empresa=(isset($_POST['dependencia']))?$_POST['dependencia']:"";
-
-  $sentencia=$conexion->prepare("UPDATE `usuarios` SET nombre=:nombre, correo=:correo, apodo=:usuario, clave=:clave, empresa=:dependencia WHERE ID=:id");
-
-  $sentencia->bindParam(":nombre",$nombre);
-  $sentencia->bindParam(":correo",$correo);
-  $sentencia->bindParam(":usuario",$usuario);
-  $sentencia->bindParam(":clave",$clave);
-  $sentencia->bindParam(":dependencia",$empresa);
-
-  $sentencia->bindParam(":id",$txtID);
-  
-  $sentencia->execute();
-
-  if($sentencia === TRUE){
-    echo "Cambios guardados";
-  }else{
-    echo "No se pudo actualizar. ";
-    print_r($sentencia->errorInfo());
-  } 
-
-  $mensaje="Se edito el registro...!";
-  header("Location:index.php?mensaje= ".$mensaje);
-
+if (!$registro) {
+    set_flash('warning', 'Usuario no encontrado.');
+    redirect_to('secciones/usuarios/');
 }
 
-include ("../../templates/header.php");?>
+$valores = [
+    'nombre' => $registro['nombre'],
+    'correo' => $registro['correo'],
+    'usuario' => $registro['apodo'],
+    'dependencia' => $registro['empresa'],
+];
 
-<div class="card">
-    <div class="card-header">
-        Editar Usuario
-    </div>
-    
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
+
+    $valores['nombre'] = post('nombre');
+    $valores['correo'] = post('correo');
+    $valores['usuario'] = post('usuario');
+    $valores['dependencia'] = post('dependencia');
+    $clave = post('clave');
+
+    if (in_array('', [$valores['nombre'], $valores['correo'], $valores['usuario']], true)) {
+        $error = 'Complete los campos obligatorios.';
+    } elseif (!filter_var($valores['correo'], FILTER_VALIDATE_EMAIL)) {
+        $error = 'Ingrese un correo valido.';
+    } else {
+        $verifica = $conexion->prepare('SELECT COUNT(*) FROM usuarios WHERE apodo = :usuario AND ID <> :id');
+        $verifica->bindValue(':usuario', $valores['usuario']);
+        $verifica->bindValue(':id', $txtID, PDO::PARAM_INT);
+        $verifica->execute();
+
+        if ((int) $verifica->fetchColumn() > 0) {
+            $error = 'El nombre de usuario ya esta en uso.';
+        } else {
+            $sql = 'UPDATE usuarios SET nombre = :nombre, correo = :correo, apodo = :usuario, empresa = :empresa';
+
+            if ($clave !== '') {
+                $sql .= ', clave = :clave';
+            }
+
+            $sql .= ' WHERE ID = :id';
+
+            $actualiza = $conexion->prepare($sql);
+            $actualiza->bindValue(':nombre', $valores['nombre']);
+            $actualiza->bindValue(':correo', $valores['correo']);
+            $actualiza->bindValue(':usuario', $valores['usuario']);
+            $actualiza->bindValue(':empresa', $valores['dependencia']);
+            $actualiza->bindValue(':id', $txtID, PDO::PARAM_INT);
+
+            if ($clave !== '') {
+                $actualiza->bindValue(':clave', password_hash($clave, PASSWORD_DEFAULT));
+            }
+
+            $actualiza->execute();
+
+            set_flash('success', 'Usuario actualizado correctamente.');
+            redirect_to('secciones/usuarios/');
+        }
+    }
+}
+
+include __DIR__ . '/../../templates/header.php';
+?>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header">Editar usuario</div>
     <div class="card-body">
-        
-    <form action="" enctype="multipart/form-data" method="post">
+        <?php if ($error !== ''): ?>
+            <div class="alert alert-danger"><?php echo e($error); ?></div>
+        <?php endif; ?>
 
-        <div class="mb-3">
-          <label for="txtID" class="form-label">ID:</label>
-          <input readonly value="<?php echo $txtID;?>" type="text"
-              class="form-control" name="txtID" id="txtID" aria-describedby="helpId" placeholder="ID">
-        </div>
+        <form method="post" class="row g-3">
+            <?php echo csrf_input(); ?>
 
-        <div class="mb-3">
-          <label for="nombre" class="form-label">Nombres y Apellidos</label>
-          <input value="<?php echo $nombre;?>" type="text"
-            class="form-control" name="nombre" id="nombre" aria-describedby="helpId" placeholder="Edite su Nombre y Apellido">
-        </div>
+            <div class="col-md-2">
+                <label class="form-label" for="txtID">ID</label>
+                <input class="form-control" type="text" id="txtID" value="<?php echo e((string) $txtID); ?>" readonly>
+            </div>
 
-        <div class="mb-3">
-          <label for="correo" class="form-label">Correo-e</label>
-          <input value="<?php echo $correo;?>" type="email"
-            class="form-control" name="correo" id="correo" aria-describedby="helpId" placeholder="Edite su Correo">
-        </div>
+            <div class="col-md-5">
+                <label class="form-label" for="nombre">Nombres y apellidos</label>
+                <input class="form-control" type="text" name="nombre" id="nombre" value="<?php echo e($valores['nombre']); ?>" required>
+            </div>
 
-        <div class="mb-3">
-          <label for="usuario" class="form-label">Usuario</label>
-          <input value="<?php echo $usuario;?>" type="text"
-            class="form-control" name="usuario" id="usuario" aria-describedby="helpId" placeholder="Edite su Usuario">
-        </div>
+            <div class="col-md-5">
+                <label class="form-label" for="correo">Correo</label>
+                <input class="form-control" type="email" name="correo" id="correo" value="<?php echo e($valores['correo']); ?>" required>
+            </div>
 
-        <div class="mb-3">
-          <label for="password" class="form-label">Contraseña</label>
-          <input value="<?php echo $clave;?> "type="password"
-            class="form-control" name="clave" id="clave" aria-describedby="helpId" placeholder="Edite su Contraseña">
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="usuario">Usuario</label>
+                <input class="form-control" type="text" name="usuario" id="usuario" value="<?php echo e($valores['usuario']); ?>" required>
+            </div>
 
-        <div class="mb-3">
-          <label for="dependencia" class="form-label">Dependencia</label>
-          <input value="<?php echo $empresa;?> "type="text"
-            class="form-control" name="dependencia" id="dependencia" aria-describedby="helpId" placeholder="Edite su Empresa">
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="clave">Nueva contrasena</label>
+                <input class="form-control" type="password" name="clave" id="clave" placeholder="Dejar vacio para conservar la actual">
+            </div>
 
-       <button type="submit" class="btn btn-success">Actualizar</button>
-       <a name="" id="" class="btn btn-primary" href="index.php" role="button">Cancelar</a>
+            <div class="col-md-6">
+                <label class="form-label" for="dependencia">Dependencia</label>
+                <input class="form-control" type="text" name="dependencia" id="dependencia" value="<?php echo e($valores['dependencia']); ?>">
+            </div>
 
-    </form>
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-success" type="submit">Actualizar</button>
+                <a class="btn btn-outline-secondary" href="index.php">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
 
+<?php include __DIR__ . '/../../templates/footer.php'; ?>
 
-
-<?php include ("../../templates/footer.php");?>

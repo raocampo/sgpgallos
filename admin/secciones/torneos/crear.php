@@ -1,85 +1,90 @@
 <?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if($_POST){
+require_auth();
 
-//Se realiza la recepción de los datos
-  $nombre=(isset($_POST['nombre']))?$_POST['nombre']:"";
-  $fechaInicio=(isset($_POST['fechaInicio']))?$_POST['fechaInicio']:"";
-  $fechaFin=(isset($_POST['fechaFin']))?$_POST['fechaFin']:"";
-  $tipoTorneo=(isset($_POST['tipoTorneo']))?$_POST['tipoTorneo']:"";
+$valores = [
+    'nombre' => '',
+    'fechaInicio' => '',
+    'fechaFin' => '',
+    'tipoTorneo' => '',
+];
 
-  $sentencia=$conexion->prepare("INSERT INTO `torneos` (`ID`, `nombre`, `fecha_inicio`, `fecha_fin`, `tipoTorneo`) VALUES (NULL, :nombre, :fecha_Inicio, :fecha_Fin, :tipoTorneo)");
+$error = '';
+$tipos = ['Nacional', 'Provincial', 'Local', 'Abierto', 'Prueba'];
 
-  $sentencia->bindParam(":nombre",$nombre);
-  $sentencia->bindParam(":fecha_Inicio",$fechaInicio);
-  $sentencia->bindParam(":fecha_Fin",$fechaFin);
-  $sentencia->bindParam(":tipoTorneo",$tipoTorneo);
-    
-  if($sentencia->execute()){
-    $mensaje="Se creo el registro...!";
-    header("Location:index.php?mensaje= ".$mensaje);
-  }
-  else{
-    echo "El Registro no se agrego";
-  }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
+
+    $valores['nombre'] = post('nombre');
+    $valores['fechaInicio'] = post('fechaInicio');
+    $valores['fechaFin'] = post('fechaFin');
+    $valores['tipoTorneo'] = post('tipoTorneo');
+
+    if ($valores['nombre'] === '' || $valores['fechaInicio'] === '' || $valores['tipoTorneo'] === '') {
+        $error = 'Complete los campos obligatorios.';
+    } elseif ($valores['fechaFin'] !== '' && $valores['fechaFin'] < $valores['fechaInicio']) {
+        $error = 'La fecha de cierre no puede ser menor a la fecha de inicio.';
+    } else {
+        $sentencia = $conexion->prepare('INSERT INTO torneos (nombre, fecha_inicio, fecha_fin, tipoTorneo) VALUES (:nombre, :fecha_inicio, :fecha_fin, :tipo)');
+        $sentencia->bindValue(':nombre', $valores['nombre']);
+        $sentencia->bindValue(':fecha_inicio', $valores['fechaInicio']);
+        $sentencia->bindValue(':fecha_fin', $valores['fechaFin'] !== '' ? $valores['fechaFin'] : $valores['fechaInicio']);
+        $sentencia->bindValue(':tipo', $valores['tipoTorneo']);
+        $sentencia->execute();
+
+        set_flash('success', 'Torneo creado correctamente.');
+        redirect_to('secciones/torneos/');
+    }
 }
-include ("../../templates/header.php");
 
+include __DIR__ . '/../../templates/header.php';
 ?>
 
-<div class="card">
-    <div class="card-header">
-        Crear Torneos
-    </div>
-    
+<div class="card shadow-sm border-0">
+    <div class="card-header">Crear torneo</div>
     <div class="card-body">
-        
-    <form action="" enctype="multipart/form-data" method="post">
+        <?php if ($error !== ''): ?>
+            <div class="alert alert-danger"><?php echo e($error); ?></div>
+        <?php endif; ?>
 
-        <div class="mb-3">
-          <label for="nombre" class="form-label">Nombre</label>
-          <input type="text"
-            class="form-control" name="nombre" id="nombre" aria-describedby="helpId" placeholder="Nombre de Torneo">
-        </div>
+        <form method="post" class="row g-3">
+            <?php echo csrf_input(); ?>
 
-        <div class="mb-3">
-          <label for="fechaInicio" class="form-label">Fecha Inicio</label>
-          <input type="date"
-            class="form-control" name="fechaInicio" id="fechaInicio" aria-describedby="helpId" placeholder="Inicia">
-        </div>
+            <div class="col-md-8">
+                <label class="form-label" for="nombre">Nombre</label>
+                <input class="form-control" type="text" name="nombre" id="nombre" value="<?php echo e($valores['nombre']); ?>" required>
+            </div>
 
-        <div class="mb-3">
-          <label for="fechaFin" class="form-label">Fecha Termina</label>
-          <input type="date"
-            class="form-control" name="fechaFin" id="fechaFin" aria-describedby="helpId" placeholder="Finaliza">
-        </div>
+            <div class="col-md-4">
+                <label class="form-label" for="tipoTorneo">Tipo de torneo</label>
+                <select class="form-select" name="tipoTorneo" id="tipoTorneo" required>
+                    <option value="">Seleccione</option>
+                    <?php foreach ($tipos as $tipo): ?>
+                        <option value="<?php echo e($tipo); ?>" <?php echo $valores['tipoTorneo'] === $tipo ? 'selected' : ''; ?>><?php echo e($tipo); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
 
-        <div class="mb-3">
-          <label for="tipoTorneo" class="form-label">Tipo de Torneo</label>
-          <!--<input type="text"
-            class="form-control" name="tipoTorneo" id="tipoTorneo" aria-describedby="helpId" placeholder="Escoja el tipo">-->
-          <select name="tipoTorneo" id="tipoTorneo" class="form-select">
-            <option value="0">Escoja</option>
-            <option value="Nacional">Nacional</option>
-            <option value="Provincial">Provincial</option>
-            <option value="Local">local</option>
-            <option value="Abierto">Abierto</option>
-            <option value="Prueba">Prueba</option>
-          </select>
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="fechaInicio">Fecha inicio</label>
+                <input class="form-control" type="date" name="fechaInicio" id="fechaInicio" value="<?php echo e($valores['fechaInicio']); ?>" required>
+            </div>
 
-       <button type="submit" class="btn btn-success">Guardar</button>
-       <a name="" id="" class="btn btn-primary" href="index.php" role="button">Cancelar</a>
+            <div class="col-md-6">
+                <label class="form-label" for="fechaFin">Fecha fin</label>
+                <input class="form-control" type="date" name="fechaFin" id="fechaFin" value="<?php echo e($valores['fechaFin']); ?>">
+            </div>
 
-    </form>
-
-    </div>
-    <div class="card-footer text-muted">
-    
-
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-success" type="submit">Guardar</button>
+                <a class="btn btn-outline-secondary" href="index.php">Cancelar</a>
+            </div>
+        </form>
     </div>
 </div>
 
-<?php include ("../../templates/footer.php");?>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>
+

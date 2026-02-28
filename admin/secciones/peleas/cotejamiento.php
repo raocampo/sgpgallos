@@ -1,741 +1,746 @@
 <?php
-error_reporting(E_ERROR | E_WARNING | E_PARSE);
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
+require_auth();
+start_secure_session();
+
+$context = require_tournament_context('Seleccione un torneo antes de generar cotejas.');
+$torneoId = $context['torneoId'];
+$nombreTorneo = $context['nombreTorneo'];
+
+$redirectUrl = 'secciones/peleas/cotejamiento.php?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId;
+$filtrosSessionKey = 'cotejamiento_filtros';
+
+function valor_decimal(?string $valor): ?float
+{
+    if ($valor === null) {
+        return null;
+    }
+
+    $valor = trim(str_replace(',', '.', $valor));
+
+    return $valor === '' ? null : (float) $valor;
 }
 
-// Verificar si la variable de sesión 'parejasCotejadas' no está definida
-if (!isset($_SESSION['parejasCotejadas'])) {
-    $_SESSION['parejasCotejadas'] = array(); // Inicializar como un arreglo vacío
+function valor_mes(?string $valor): ?int
+{
+    if ($valor === null) {
+        return null;
+    }
+
+    $limpio = preg_replace('/\D+/', '', trim($valor));
+    if ($limpio === '') {
+        return null;
+    }
+
+    $mes = (int) $limpio;
+
+    return $mes >= 1 && $mes <= 12 ? $mes : null;
 }
 
-$nombreTorneo = $_SESSION['nombreTorneo'];
-$torneoId = $_SESSION['torneoId'];
-
-// variables para presentar los registros
-$item = 0;
-$item1 = 0;
-$item2 = 0;
-$gallosSeleccionados = array();
-$parejaEncontradaTolerancia;
-
-$sentencia = $conexion->prepare("SELECT COUNT(*) FROM gallos WHERE torneoId = :torneoId ");
-$sentencia->bindParam(":torneoId", $torneoId);
-$sentencia->execute();
-$total_gallos = $sentencia->fetchColumn();
-
-$toleranciaAltura = isset($_POST['altura']) ? $_POST['altura'] : null;
-$toleranciaPeso = isset($_POST['peso']) ? $_POST['peso'] : null;
-
-$cantidad_parejas = intval($total_gallos / 2);
-if ($total_gallos % 2 != 0) {
-    $total_gallos--;
-}
-
-//Se elimina la pareja cotejada manualmente de la tabla coteja
-//Se activa el checkbox para volver a seleccionar
-if (isset($_GET['txtID'])) {
-    // Obtener los IDs de los gallos involucrados en la pareja cotejada
-    $sentenciaID = $conexion->prepare("SELECT galloL, gallov FROM coteja WHERE ID_Coteja=:id");
-    $sentenciaID->bindParam(":id", $_GET['txtID']);
-    $sentenciaID->execute();
-    $parejaIDs = $sentenciaID->fetch(PDO::FETCH_ASSOC);
-
-    // Realizar la eliminación de la pareja cotejada según el ID recibido
-    $txtID = $_GET['txtID'];
-
-    $sentencia = $conexion->prepare("DELETE FROM coteja WHERE ID_Coteja=:id");
-    $sentencia->bindParam(":id", $txtID);
+function coteja_ya_guardada(PDO $conexion, int $torneoId, int $galloL, int $galloV): bool
+{
+    $sentencia = $conexion->prepare('
+        SELECT COUNT(*)
+        FROM coteja
+        WHERE torneoId = :torneoId
+          AND (
+                (galloL = :galloL_a AND galloV = :galloV_a)
+             OR (galloL = :galloV_b AND galloV = :galloL_b)
+          )
+    ');
+    $sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+    $sentencia->bindValue(':galloL_a', $galloL, PDO::PARAM_INT);
+    $sentencia->bindValue(':galloV_a', $galloV, PDO::PARAM_INT);
+    $sentencia->bindValue(':galloV_b', $galloV, PDO::PARAM_INT);
+    $sentencia->bindValue(':galloL_b', $galloL, PDO::PARAM_INT);
     $sentencia->execute();
 
-    // Verificar y eliminar los IDs de los gallos de $_SESSION['parejasCotejadas'] si están presentes
-    $galloL_ID = $parejaIDs['galloL'];
-    $gallov_ID = $parejaIDs['gallov'];
+    return (int) $sentencia->fetchColumn() > 0;
+}
 
-    $index_galloL = array_search($galloL_ID, $_SESSION['parejasCotejadas']);
-    if ($index_galloL !== false) {
-        unset($_SESSION['parejasCotejadas'][$index_galloL]);
+function gallos_disponibles_para_coteja(PDO $conexion, int $torneoId, int $galloL, int $galloV): bool
+{
+    $sentenciaGallos = $conexion->prepare('
+        SELECT COUNT(*)
+        FROM gallos
+        WHERE torneoId = :torneoId
+          AND (ID = :galloL OR ID = :galloV)
+    ');
+    $sentenciaGallos->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+    $sentenciaGallos->bindValue(':galloL', $galloL, PDO::PARAM_INT);
+    $sentenciaGallos->bindValue(':galloV', $galloV, PDO::PARAM_INT);
+    $sentenciaGallos->execute();
+
+    if ((int) $sentenciaGallos->fetchColumn() !== 2) {
+        return false;
     }
 
-    $index_gallov = array_search($gallov_ID, $_SESSION['parejasCotejadas']);
-    if ($index_gallov !== false) {
-        unset($_SESSION['parejasCotejadas'][$index_gallov]);
+    $sentenciaCotejas = $conexion->prepare('
+        SELECT COUNT(*)
+        FROM coteja
+        WHERE torneoId = :torneoId
+          AND (
+                galloL = :galloL_a
+             OR galloV = :galloL_b
+             OR galloL = :galloV_a
+             OR galloV = :galloV_b
+          )
+    ');
+    $sentenciaCotejas->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+    $sentenciaCotejas->bindValue(':galloL_a', $galloL, PDO::PARAM_INT);
+    $sentenciaCotejas->bindValue(':galloL_b', $galloL, PDO::PARAM_INT);
+    $sentenciaCotejas->bindValue(':galloV_a', $galloV, PDO::PARAM_INT);
+    $sentenciaCotejas->bindValue(':galloV_b', $galloV, PDO::PARAM_INT);
+    $sentenciaCotejas->execute();
+
+    return (int) $sentenciaCotejas->fetchColumn() === 0;
+}
+
+function registrar_coteja(PDO $conexion, int $torneoId, int $galloL, int $galloV): bool
+{
+    if ($galloL <= 0 || $galloV <= 0 || $galloL === $galloV) {
+        return false;
+    }
+
+    if (!gallos_disponibles_para_coteja($conexion, $torneoId, $galloL, $galloV)) {
+        return false;
+    }
+
+    if (coteja_ya_guardada($conexion, $torneoId, $galloL, $galloV)) {
+        return false;
+    }
+
+    $sentencia = $conexion->prepare('
+        INSERT INTO coteja (galloL, galloV, estado, torneoId)
+        VALUES (:galloL, :galloV, :estado, :torneoId)
+    ');
+    $sentencia->bindValue(':galloL', $galloL, PDO::PARAM_INT);
+    $sentencia->bindValue(':galloV', $galloV, PDO::PARAM_INT);
+    $sentencia->bindValue(':estado', 'Cotejado');
+    $sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+
+    return $sentencia->execute();
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
+
+    if (isset($_POST['guardar_filtros'])) {
+        $usaPeso = isset($_POST['medida']);
+        $usaAltura = isset($_POST['medidaAltura']);
+        $peso = $usaPeso ? post('peso') : '';
+        $altura = $usaAltura ? post('altura') : '';
+        $lote = max(0, (int) post('rescotejar'));
+
+        $_SESSION[$filtrosSessionKey][$torneoId] = [
+            'usaPeso' => $usaPeso,
+            'usaAltura' => $usaAltura,
+            'peso' => $peso,
+            'altura' => $altura,
+            'nacimiento' => isset($_POST['nacimiento']),
+            'exclusion' => isset($_POST['exclusion']),
+            'rescotejar' => $lote > 0 ? (string) $lote : '',
+        ];
+
+        if (($usaPeso && $peso === '') || ($usaAltura && $altura === '')) {
+            set_flash('warning', 'Indique un valor para cada filtro activado.');
+        }
+
+        redirect_to($redirectUrl);
+    }
+
+    if (isset($_POST['eliminar_coteja'])) {
+        $id = (int) $_POST['eliminar_coteja'];
+        $sentencia = $conexion->prepare('DELETE FROM coteja WHERE ID_Coteja = :id AND torneoId = :torneoId');
+        $sentencia->bindValue(':id', $id, PDO::PARAM_INT);
+        $sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+        $sentencia->execute();
+
+        set_flash('success', 'La coteja fue retirada correctamente.');
+        redirect_to($redirectUrl);
+    }
+
+    if (isset($_POST['limpiar_cotejas'])) {
+        $sentencia = $conexion->prepare('DELETE FROM coteja WHERE torneoId = :torneoId');
+        $sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+        $sentencia->execute();
+
+        set_flash('success', 'Se limpiaron todas las cotejas del torneo.');
+        redirect_to($redirectUrl);
+    }
+
+    if (isset($_POST['guardar_coteja_manual'])) {
+        $seleccionados = array_values(array_unique(array_map('intval', $_POST['cotejamiento'] ?? [])));
+
+        if (count($seleccionados) !== 2) {
+            set_flash('warning', 'Seleccione exactamente 2 gallos para registrar la coteja manual.');
+        } elseif (registrar_coteja($conexion, $torneoId, $seleccionados[0], $seleccionados[1])) {
+            set_flash('success', 'La coteja manual se registró correctamente.');
+        } else {
+            set_flash('danger', 'No fue posible registrar la coteja manual.');
+        }
+
+        redirect_to($redirectUrl);
+    }
+
+    if (isset($_POST['guardar_coteja_libre'])) {
+        $seleccionados = array_values(array_unique(array_map('intval', $_POST['gallos'] ?? [])));
+
+        if (count($seleccionados) !== 2) {
+            set_flash('warning', 'Seleccione exactamente 2 gallos libres.');
+        } elseif (registrar_coteja($conexion, $torneoId, $seleccionados[0], $seleccionados[1])) {
+            set_flash('success', 'La coteja desde gallos libres se registró correctamente.');
+        } else {
+            set_flash('danger', 'No fue posible cotejar los gallos libres seleccionados.');
+        }
+
+        redirect_to($redirectUrl);
     }
 }
 
-//Con esta sentencias seleccionamos los datos de la tabla de familias
-$sentencia = $conexion->prepare("SELECT * FROM familias WHERE codigo");
+$filtros = $_SESSION[$filtrosSessionKey][$torneoId] ?? [
+    'usaPeso' => false,
+    'usaAltura' => false,
+    'peso' => '',
+    'altura' => '',
+    'nacimiento' => false,
+    'exclusion' => false,
+    'rescotejar' => '',
+];
+
+$toleranciaPeso = valor_decimal($filtros['peso'] ?? null);
+$toleranciaAltura = valor_decimal($filtros['altura'] ?? null);
+$aplicarFiltroPeso = !empty($filtros['usaPeso']) && $toleranciaPeso !== null;
+$aplicarFiltroAltura = !empty($filtros['usaAltura']) && $toleranciaAltura !== null;
+$filtrarNacimiento = !empty($filtros['nacimiento']);
+$filtrarExclusion = !empty($filtros['exclusion']);
+
+$sentencia = $conexion->prepare('SELECT COUNT(*) FROM gallos WHERE torneoId = :torneoId');
+$sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
 $sentencia->execute();
+$totalGallos = (int) $sentencia->fetchColumn();
+$maximoCotejable = $totalGallos - ($totalGallos % 2);
 
-$familias = $sentencia->fetchAll(PDO::FETCH_ASSOC);
+$sentencia = $conexion->prepare('
+    SELECT c.ID_Coteja, c.galloL, c.galloV,
+           gl.anillo AS anilloL, gl.pesoReal AS pesoRealL, fl.nombre AS nombre_familiaL,
+           gv.anillo AS anilloV, gv.pesoReal AS pesoRealV, fv.nombre AS nombre_familiaV
+    FROM coteja c
+    INNER JOIN gallos gl ON c.galloL = gl.ID
+    INNER JOIN gallos gv ON c.galloV = gv.ID
+    INNER JOIN familias fl ON gl.familiasId = fl.codigo
+    INNER JOIN familias fv ON gv.familiasId = fv.codigo
+    WHERE c.torneoId = :torneoId
+    ORDER BY c.ID_Coteja ASC
+');
+$sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+$sentencia->execute();
+$cotejasGuardadas = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 
-include("../../templates/header.sub.php");
+$gallosComprometidos = [];
+foreach ($cotejasGuardadas as $coteja) {
+    $gallosComprometidos[] = (int) $coteja['galloL'];
+    $gallosComprometidos[] = (int) $coteja['galloV'];
+}
+$gallosComprometidos = array_values(array_unique($gallosComprometidos));
+
+$sentencia = $conexion->prepare('
+    SELECT g.ID, g.anillo, g.pesoReal, g.tamañoReal, g.nacimiento, g.frente, g.familiasId,
+           f.nombre AS nombre_familia,
+           r.nombreCompleto AS nombre_representante
+    FROM gallos g
+    INNER JOIN familias f ON g.familiasId = f.codigo
+    INNER JOIN representante r ON g.representanteId = r.ID
+    WHERE g.torneoId = :torneoId
+    ORDER BY g.pesoReal ASC, g.tamañoReal ASC, g.anillo ASC
+');
+$sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+$sentencia->execute();
+$listaGallos = $sentencia->fetchAll(PDO::FETCH_ASSOC);
+
+$gallosDisponibles = array_values(array_filter($listaGallos, static function (array $gallo) use ($gallosComprometidos): bool {
+    return !in_array((int) $gallo['ID'], $gallosComprometidos, true);
+}));
+
+$loteSolicitado = (int) ($filtros['rescotejar'] ?? 0);
+if ($loteSolicitado <= 0) {
+    $loteSolicitado = count($gallosDisponibles);
+}
+$loteSolicitado = min($loteSolicitado, count($gallosDisponibles));
+if ($loteSolicitado > 0 && $loteSolicitado % 2 !== 0) {
+    $loteSolicitado--;
+}
+
+$gallosEnAnalisis = $loteSolicitado > 0 ? array_slice($gallosDisponibles, 0, $loteSolicitado) : [];
+$gallosFueraDeAnalisis = $loteSolicitado > 0 ? array_slice($gallosDisponibles, $loteSolicitado) : $gallosDisponibles;
+
+$exclusiones = [];
+if ($filtrarExclusion) {
+    $sentencia = $conexion->prepare('SELECT nombreFamiliaUno, nombreFamiliaDos FROM exclusiones WHERE torneoId = :torneoId');
+    $sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+    $sentencia->execute();
+
+    foreach ($sentencia->fetchAll(PDO::FETCH_ASSOC) as $registro) {
+        $claveA = $registro['nombreFamiliaUno'] . '-' . $registro['nombreFamiliaDos'];
+        $claveB = $registro['nombreFamiliaDos'] . '-' . $registro['nombreFamiliaUno'];
+        $exclusiones[$claveA] = true;
+        $exclusiones[$claveB] = true;
+    }
+}
+
+$parejasPropuestas = [];
+$gallosLibres = [];
+$idsUsados = [];
+
+for ($i = 0, $totalAnalisis = count($gallosEnAnalisis); $i < $totalAnalisis; $i++) {
+    $galloBase = $gallosEnAnalisis[$i];
+    $idBase = (int) $galloBase['ID'];
+
+    if (isset($idsUsados[$idBase])) {
+        continue;
+    }
+
+    $mejorIndice = null;
+    $mejorPuntaje = null;
+
+    for ($j = $i + 1; $j < $totalAnalisis; $j++) {
+        $galloComparado = $gallosEnAnalisis[$j];
+        $idComparado = (int) $galloComparado['ID'];
+
+        if (isset($idsUsados[$idComparado])) {
+            continue;
+        }
+
+        if ((string) $galloBase['familiasId'] === (string) $galloComparado['familiasId']) {
+            continue;
+        }
+
+        if ($filtrarExclusion && isset($exclusiones[$galloBase['familiasId'] . '-' . $galloComparado['familiasId']])) {
+            continue;
+        }
+
+        $difPeso = abs((float) $galloBase['pesoReal'] - (float) $galloComparado['pesoReal']);
+        $difAltura = abs((float) $galloBase['tamañoReal'] - (float) $galloComparado['tamañoReal']);
+
+        if ($aplicarFiltroPeso && $difPeso > (float) $toleranciaPeso) {
+            continue;
+        }
+
+        if ($aplicarFiltroAltura && $difAltura > (float) $toleranciaAltura) {
+            continue;
+        }
+
+        if ($filtrarNacimiento) {
+            $mesBase = valor_mes((string) $galloBase['nacimiento']);
+            $mesComparado = valor_mes((string) $galloComparado['nacimiento']);
+
+            if ($mesBase === null || $mesComparado === null || abs($mesBase - $mesComparado) > 1) {
+                continue;
+            }
+        }
+
+        if (!$aplicarFiltroPeso && !$aplicarFiltroAltura && ($difPeso > 0 || $difAltura > 0)) {
+            continue;
+        }
+
+        $puntaje = 0;
+        $puntaje += $aplicarFiltroPeso ? ($difPeso * 1000) : 0;
+        $puntaje += $aplicarFiltroAltura ? ($difAltura * 100) : 0;
+        $puntaje += (!$aplicarFiltroPeso && !$aplicarFiltroAltura) ? (($difPeso + $difAltura) * 1000) : 0;
+
+        if ($mejorPuntaje === null || $puntaje < $mejorPuntaje) {
+            $mejorPuntaje = $puntaje;
+            $mejorIndice = $j;
+        }
+    }
+
+    if ($mejorIndice !== null) {
+        $parejasPropuestas[] = [$galloBase, $gallosEnAnalisis[$mejorIndice]];
+        $idsUsados[$idBase] = true;
+        $idsUsados[(int) $gallosEnAnalisis[$mejorIndice]['ID']] = true;
+    } else {
+        $gallosLibres[] = $galloBase;
+    }
+}
+
+$resumenFiltros = [];
+if ($aplicarFiltroPeso) {
+    $resumenFiltros[] = 'Peso +/- ' . rtrim(rtrim((string) $toleranciaPeso, '0'), '.');
+}
+if ($aplicarFiltroAltura) {
+    $resumenFiltros[] = 'Altura +/- ' . rtrim(rtrim((string) $toleranciaAltura, '0'), '.');
+}
+if ($filtrarNacimiento) {
+    $resumenFiltros[] = 'Nacimiento compatible';
+}
+if ($filtrarExclusion) {
+    $resumenFiltros[] = 'Respeta exclusiones';
+}
+if (!$aplicarFiltroPeso && !$aplicarFiltroAltura) {
+    $resumenFiltros[] = 'Sin peso/altura: coincidencia exacta';
+}
+
+include __DIR__ . '/../../templates/header.sub.php';
 ?>
 
-<div class="card container-fluid bg-transparent col-12 ">
-    <div class="card-header ">
-        <h3>Generar Cotejas</h3>
+<div class="page-intro">
+    <div>
+        <span class="app-kicker">Motor de cruces</span>
+        <h2 class="page-title mb-2">Cotejamiento del torneo</h2>
+        <p>Seleccione por peso, altura, nacimiento y exclusiones para generar propuestas automaticas del torneo activo.</p>
     </div>
-    <!--INICIA SECCIÓN TOLERANCIA-->
-    <section class=" container-fluid d-flex">
-        <div class="d-flex flex-column col-6">
-            <div class="card-body col-8 m-auto">
-                <!--INICIA FORMULARIO TOLERANCIA-->
-                <form class="contenido_tolerancia" action="" enctype="multipart/form-data" method="post">
-                    <div class=" card container container-fluid d-flex text-center">
-                        <div class=" mt-2 ">
-                            <h5>Tolerancia</h5>
-                        </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-outline-primary btn-sm" href="peleaGenerada.php">Ver peleas</a>
+        <?php if (!empty($cotejasGuardadas)): ?>
+            <form method="post" class="d-inline">
+                <?php echo csrf_input(); ?>
+                <input type="hidden" name="limpiar_cotejas" value="1">
+                <button type="submit" class="btn btn-outline-secondary btn-sm" data-confirm="Esto eliminara todas las cotejas guardadas del torneo. Desea continuar?">Limpiar cotejas</button>
+            </form>
+        <?php endif; ?>
+    </div>
+</div>
 
-                        <div class="d-flex">
+<div class="stats-grid mb-4">
+    <div class="card stat-card">
+        <div class="stat-label">Gallos cargados</div>
+        <div class="stat-value"><?php echo e((string) $totalGallos); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Disponibles</div>
+        <div class="stat-value"><?php echo e((string) count($gallosDisponibles)); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Cotejas guardadas</div>
+        <div class="stat-value"><?php echo e((string) count($cotejasGuardadas)); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Propuestas</div>
+        <div class="stat-value"><?php echo e((string) count($parejasPropuestas)); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Gallos libres</div>
+        <div class="stat-value"><?php echo e((string) count($gallosLibres)); ?></div>
+    </div>
+</div>
 
-                            <div class=" d-flex flex-column text-center justify-content-center mx-3">
+<form id="form-pactar-peleas" action="peleaGenerada.php" method="post" class="d-none">
+    <?php echo csrf_input(); ?>
+    <input type="hidden" name="peleaGenerada" value="1">
+</form>
 
-                                <div class="d-flex justify-content-center mt-4 ">
-                                    <input type="checkbox" name="medida" value="onzas" id="onzas">
-                                    <label class="mx-1" for="">Peso</label>
-                                    <input class=" w-25 text-center" type="number" step="0.01" name="peso" id="peso" disabled>
-                                </div>
-
-                            </div>
-
-                        </div>
-                        <div class="d-flex ">
-
-                            <div class=" d-flex flex-column text-center justify-content-center mx-3">
-
-                                <div class="d-flex justify-content-center mt-4 ">
-                                    <input type="checkbox" name="medidaAltura" value="centimetros" id="centimetros">
-                                    <label class=" mx-1" for="">altura</label>
-                                    <input class=" w-25 text-center" type="number" step="0.01" name="altura" id="altura" disabled>
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                        <div class="dflex flex-row align-items-center">
-                            <div class="d-flex justify-content-center">
-                                <div class="mx-3">
-                                    <label class="m-1" for="nacimiento">Mes de nacimiento</label>
-                                    <input type="checkbox" name="nacimiento" id="nacimiento">
-                                </div>
-
-                                <div><label class="m-1" for="exclusion">Exclusiones</label>
-                                    <input type="checkbox" name="exclusion" id="exclusion">
-                                </div>
-
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <div class="card container-fluid d-flex align-items-center justify-content-center col-12">
-                        <div class="container mt-3 text-center">
-                            <label for="">Gallos a cotejar</label>
-                            <input class=" w-25 text-center" name="rescotejar" id="rescotejar" value="<?php echo $total_gallos; ?>" type="text">
-                        </div>
-                        <div class="mt-3">
-                            <button type="submit" class="btn btn-success mt-2 mb-3">Cotejar</button>
-                        </div>
-                    </div>
-                </form><!--FIN FORMULARIO TOLERANCIA-->
-            </div><!--FIN SECCIÓN TOLERANCIA MANUAL Y AUTOMATICA-->
-            <!--INICIA DIV Y FORMULARIO DE COTEJA MANUAL-->
-            <div class="card mx-0 container-fluid">
-                <div class="card-header">
-                    <span>Coteja Manual</span>
+<section class="board-grid pairing-layout">
+    <div class="stack-grid">
+        <div class="card table-card">
+            <div class="card-header panel-toolbar">
+                <div>
+                    <div class="panel-title">Parametros de emparejamiento</div>
+                    <div class="panel-note">Puede usar peso, altura o ambos. Nacimiento y exclusiones se aplican como filtros adicionales.</div>
                 </div>
-                <form id="formCotejoManual" action="" method="POST">
-                    <div class="d-flex">
-                        <?php
-                        $sentencia = $conexion->prepare("SELECT gallos.ID, gallos.anillo, gallos.pesoReal, gallos.tamañoReal, gallos.placa, gallos.nacimiento, gallos.frente, familias.nombre AS nombre_familia, representante.nombreCompleto AS nombre_representante 
-                        FROM gallos 
-                        INNER JOIN familias ON gallos.familiasId = familias.codigo 
-                        INNER JOIN representante ON gallos.representanteId = representante.ID
-                        WHERE gallos.torneoId = :torneoId
-                        ORDER BY pesoReal, tamañoReal ");
-                        $sentencia->bindParam(":torneoId", $torneoId);
-                        $sentencia->execute();
+                <span class="badge-soft"><?php echo e((string) min($loteSolicitado, $maximoCotejable)); ?> gallos en analisis</span>
+            </div>
+            <div class="card-body">
+                <form method="post" class="row g-3">
+                    <?php echo csrf_input(); ?>
+                    <input type="hidden" name="guardar_filtros" value="1">
 
-                        $lista_gallos = $sentencia->fetchAll(PDO::FETCH_ASSOC)
-                        ?>
-                        <?php
-                        if (isset($_POST['cotejamiento']) && !empty($_POST['cotejamiento'])) {
+                    <div class="col-md-6">
+                        <label class="form-label d-block" for="onzas">Filtrar por peso</label>
+                        <div class="filter-input-group">
+                            <input type="checkbox" name="medida" value="onzas" id="onzas" <?php echo $aplicarFiltroPeso ? 'checked' : ''; ?>>
+                            <input class="form-control" type="number" step="0.01" min="0" name="peso" id="peso" value="<?php echo e((string) ($filtros['peso'] ?? '')); ?>" <?php echo $aplicarFiltroPeso ? '' : 'disabled'; ?>>
+                        </div>
+                    </div>
 
-                            $cotejamientoManual = $_POST['cotejamiento'];
+                    <div class="col-md-6">
+                        <label class="form-label d-block" for="centimetros">Filtrar por altura</label>
+                        <div class="filter-input-group">
+                            <input type="checkbox" name="medidaAltura" value="centimetros" id="centimetros" <?php echo $aplicarFiltroAltura ? 'checked' : ''; ?>>
+                            <input class="form-control" type="number" step="0.01" min="0" name="altura" id="altura" value="<?php echo e((string) ($filtros['altura'] ?? '')); ?>" <?php echo $aplicarFiltroAltura ? '' : 'disabled'; ?>>
+                        </div>
+                    </div>
 
-                            $sentencia = $conexion->prepare("INSERT INTO `coteja` (`galloL`, `galloV`, `estado`, `torneoId`) VALUES (:galloL, :galloV, :estado, :torneoId)");
-                            $sentencia->bindParam(":torneoId", $torneoId);
+                    <div class="col-md-6">
+                        <label class="form-label" for="rescotejar">Gallos a evaluar</label>
+                        <input class="form-control" type="number" min="0" max="<?php echo e((string) $maximoCotejable); ?>" name="rescotejar" id="rescotejar" value="<?php echo e((string) ($filtros['rescotejar'] !== '' ? $filtros['rescotejar'] : $maximoCotejable)); ?>">
+                    </div>
 
-                            $galloL = '';
-                            $galloV = '';
+                    <div class="col-md-6">
+                        <div class="filter-switches">
+                            <label class="toggle-chip">
+                                <input type="checkbox" name="nacimiento" <?php echo $filtrarNacimiento ? 'checked' : ''; ?>>
+                                <span>Mes de nacimiento</span>
+                            </label>
+                            <label class="toggle-chip">
+                                <input type="checkbox" name="exclusion" <?php echo $filtrarExclusion ? 'checked' : ''; ?>>
+                                <span>Aplicar exclusiones</span>
+                            </label>
+                        </div>
+                    </div>
 
-                            foreach ($cotejamientoManual as $coteja) {
-                                if ($galloL === '') {
-                                    $galloL = $coteja;
-                                } else {
-                                    $galloV = $coteja;
+                    <div class="col-12 d-flex gap-2 flex-wrap">
+                        <button type="submit" class="btn btn-success">Generar cotejamiento</button>
+                        <span class="badge-soft accent"><?php echo e(implode(' | ', $resumenFiltros)); ?></span>
+                    </div>
+                </form>
+            </div>
+        </div>
 
-                                    //Verficar si la pareja ya ha sido seleccionada
-                                    if (parejaSeleccionada($galloL, $galloV, $conexion)) {
-                                        echo "<script>alert ('La pareja ya ha sido seleccionada previamente!!!');</script>";
-                                        continue; //Saltar a la siguiente iteración del bucle
-                                    }
-
-                                    $sentencia->bindParam(":galloL", $galloL);
-                                    $sentencia->bindParam(":galloV", $galloV);
-                                    $sentencia->bindValue(":estado", 'Cotejado');
-                                    $sentencia->execute();
-
-                                    // Agregar las parejas cotejadas a la variable de sesión
-                                    $_SESSION['parejasCotejadas'][] = $galloL;
-                                    $_SESSION['parejasCotejadas'][] = $galloV;
-
-                                    $galloL = '';
-                                    $galloV = '';
-                                }
-                            }
-                        }
-
-                        function parejaSeleccionada($galloL, $galloV, $conexion)
-                        {
-                            $sentencia = $conexion->prepare("SELECT COUNT(*) FROM `coteja` WHERE (`galloL` = :galloL AND `galloV` = :galloV) OR (`galloL` = :galloV AND `galloV` = :galloL)");
-                            $sentencia->bindParam(":galloL", $galloL);
-                            $sentencia->bindParam(":galloV", $galloV);
-                            $sentencia->execute();
-                            $resultado = $sentencia->fetchColumn();
-                            return ($resultado > 0); // Retorna true si la pareja ya ha sido seleccionada previamente
-                        }
-                        ?>
-                        <div class=" d-flex flex-column justify-content-center text-center table-responsive overflow-auto">
-                            <div class="text-center">
-                                <button type="submit" id="btnCotejaManual" class="btn btn-success m-2">Cotejar Manualmente</button>
-                            </div>
-                            <table class="table flex-fill text-center" id="tabla_id">
-                                <thead class="table-primary">
+        <div class="card table-card">
+            <div class="card-header panel-toolbar">
+                <div>
+                    <div class="panel-title">Coteja manual</div>
+                    <div class="panel-note">Registro directo para casos donde quiera elegir manualmente dos gallos disponibles.</div>
+                </div>
+                <span class="badge-soft"><?php echo e((string) count($gallosDisponibles)); ?> disponibles</span>
+            </div>
+            <div class="card-body">
+                <?php if (!empty($gallosDisponibles)): ?>
+                    <form method="post">
+                        <?php echo csrf_input(); ?>
+                        <input type="hidden" name="guardar_coteja_manual" value="1">
+                        <div class="mini-toolbar">
+                            <div class="panel-note">Solo se listan gallos que no estan ya comprometidos en otras cotejas.</div>
+                            <button type="submit" class="btn btn-success btn-sm">Registrar coteja manual</button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table align-middle" data-datatable="true">
+                                <thead class="table-light">
                                     <tr>
-                                        <th>ITEM</th>
+                                        <th>#</th>
                                         <th>Anillo</th>
                                         <th>Criadero</th>
                                         <th>Peso</th>
                                         <th>Altura</th>
                                         <th>Frente</th>
-                                        <th>Mes Nac</th>
-                                        <th>Seleccionar Pareja</th>
+                                        <th>Nacimiento</th>
+                                        <th>Representante</th>
+                                        <th>Seleccionar</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php
-                                    foreach ($lista_gallos as $gallo) {
-                                        $galloID = $gallo['ID'];
-                                        $checkboxDisabled = in_array($galloID, $_SESSION['parejasCotejadas']);
-                                    ?>
-                                        <tr data-id="<?php echo $gallo['ID']; ?>">
-                                            <td><?php echo $item += 1; ?></td>
-                                            <td><?php echo $gallo['anillo']; ?></td>
-                                            <td><?php echo $gallo['nombre_familia']; ?></td>
-                                            <td><?php echo $gallo['pesoReal']; ?></td>
-                                            <td><?php echo $gallo['tamañoReal']; ?></td>
-                                            <td><?php echo $gallo['frente']; ?></td>
-                                            <td><?php echo $gallo['nacimiento']; ?></td>
-                                            <td><input type="checkbox" class="checkbox-pareja" name="cotejamiento[]" value="<?php echo $gallo['ID']; ?>" <?php if ($checkboxDisabled) {
-                                                                                                                                                                echo 'disabled';
-                                                                                                                                                            } ?>></td>
-                                        </tr>
-                                    <?php } ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </form>
-            </div><!--FIN DE COTEJAMIENTO MANUAL-->
-        </div>
-
-        <!--SECCION DE ALGORITMO COTEJAMIENTO-->
-        <div class="card-body container-fluid col-6">
-            <!--INICIA FORMULARIO PARA SELECCIONAR COTEJAMIENTO-->
-            <form class="contenido_tolerancia" action="peleaGenerada.php" enctype="multipart/form-data" method="post">
-                <div class=" card d-flex flex-column">
-                    <div class="card-header">
-                        <span>Cotejas</span>
-                    </div>
-
-                    <div class="card d-flex table-responsive col-auto overflow-auto">
-
-                        <div class="d-flex flex-row justify-content-center">
-                            <div class="text-center">
-                                <input type="hidden" name="peleaGenerada" value="1">
-                                <button name="peleasGenerada" type="submit" class="btn btn-success m-2">Pactar Peleas</button>
-                            </div>
-                        </div>
-
-                        <!--PRESENTAR COTEJA MANUAL-->
-                        <table class="table flex-fill text-center text-bg-light">
-                            <thead class="table-primary">
-                                <tr>
-                                    <th>ITEM</th>
-                                    <th>AnilloL</th>
-                                    <th>GalloL</th>
-                                    <th>AlturaL</th>
-                                    <th>PesoL</th>
-                                    <th>FrenteL</th>
-                                    <th>MesNacL</th>
-                                    <th>AnilloV</th>
-                                    <th>GalloV</th>
-                                    <th>AlturaV</th>
-                                    <th>PesoV</th>
-                                    <th>FrenteV</th>
-                                    <th>MesNacV</th>
-                                    <th>Seleccionar</th>
-                                    <th>Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                $sentencia = $conexion->prepare("SELECT c.ID_Coteja, c.galloL, c.galloV, c.estado,
-                                        gl.anillo AS anilloL, gl.pesoReal AS pesoRealL, gl.tamañoReal AS tamañoRealL, gl.frente AS frenteL, gl.nacimiento AS nacimientoL, fl.nombre AS nombre_familiaL,
-                                        gv.anillo AS anilloV, gv.pesoReal AS pesoRealV, gv.tamañoReal AS tamañoRealV, gv.frente AS frenteV, gv.nacimiento AS nacimientoV, fv.nombre AS nombre_familiaV
-                                        FROM coteja c
-                                        INNER JOIN gallos gl ON c.galloL = gl.ID
-                                        INNER JOIN gallos gv ON c.galloV = gv.ID
-                                        INNER JOIN familias fl ON gl.familiasId = fl.codigo
-                                        INNER JOIN familias fv ON gv.familiasId = fv.codigo
-                                        WHERE c.torneoId = :torneoId");
-                                $sentencia->bindParam(":torneoId", $torneoId);
-                                $sentencia->execute();
-                                $resultado = $sentencia->fetchAll(PDO::FETCH_ASSOC);
-
-                                ?>
-                                <?php foreach ($resultado as $cotManual) { ?>
-                                    <tr>
-                                        <td><?php echo $item1 += 1; ?></td>
-                                        <td><?php echo $cotManual['anilloL']; ?></td>
-                                        <td><?php echo $cotManual['nombre_familiaL']; ?></td>
-                                        <td><?php echo $cotManual['tamañoRealL']; ?></td>
-                                        <td><?php echo $cotManual['pesoRealL']; ?></td>
-                                        <td><?php echo $cotManual['frenteL']; ?></td>
-                                        <td><?php echo $cotManual['nacimientoL']; ?></td>
-                                        <td><?php echo $cotManual['anilloV']; ?></td>
-                                        <td><?php echo $cotManual['nombre_familiaV']; ?></td>
-                                        <td><?php echo $cotManual['tamañoRealV']; ?></td>
-                                        <td><?php echo $cotManual['pesoRealV']; ?></td>
-                                        <td><?php echo $cotManual['frenteV']; ?></td>
-                                        <td><?php echo $cotManual['nacimientoV']; ?></td>
-                                        <td><input type="checkbox" name="peleas[]" value="<?php echo $cotManual['ID_Coteja']; ?>"></td>
-                                        <td><a name="coteja" id="" href="cotejamiento.php?txtID=<?php echo  $cotManual['ID_Coteja']; ?>"><i class="fa-solid fa-trash-can"></i></a></td>
-                                    </tr>
-                                <?php } ?>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class="card d-flex flex-row table-responsive overflow-auto">
-                        <?php
-                        $ids_cotejados = [];
-                        $parejas = [];
-                        $gallosLibres = [];
-                        $familiaID1 = [];
-                        $familiaID2 = [];
-
-                        if ((!empty($toleranciaPeso) && $toleranciaPeso != 0) && (!empty($toleranciaAltura) && $toleranciaAltura != 0)) :
-                            $gallos = $conexion->prepare("SELECT * FROM gallos
-                                WHERE familiasId <> 0
-                                    AND ID NOT IN (
-                                        SELECT DISTINCT galloL FROM coteja WHERE torneoId = :torneoId
-                                        UNION
-                                        SELECT DISTINCT gallov FROM coteja WHERE torneoId = :torneoId
-                                    )
-                                    AND torneoId = :torneoId
-                                ORDER BY pesoReal, tamañoReal
-                            ");
-                            $gallos->bindParam(":torneoId", $torneoId);
-                            $gallos->execute();
-                            $gallos = $gallos->fetchAll(PDO::FETCH_ASSOC);
-
-                            $cantidadGallos = count($gallos);
-
-                            $nacimiento = isset($_POST['nacimiento']) ? true : false;
-                            $exclusion = isset($_POST['exclusion']) ? true : false;
-
-                            $excluidas = [];
-
-                            if ($exclusion) {
-                                $sentencia = $conexion->prepare("SELECT nombreFamiliaUno, nombreFamiliaDos FROM exclusiones WHERE torneoId = :torneoId");
-                                $sentencia->bindParam(":torneoId", $torneoId);
-                                $sentencia->execute();
-                                $exclusiones = $sentencia->fetchAll(PDO::FETCH_ASSOC);
-
-                                foreach ($exclusiones as $exclusion) {
-                                    $nombreFamiliaUno = $exclusion['nombreFamiliaUno'];
-                                    $nombreFamiliaDos = $exclusion['nombreFamiliaDos'];
-
-                                    $excluidas[] = $nombreFamiliaUno;
-                                    $excluidas[] = $nombreFamiliaDos;
-                                }
-                            }
-
-                            for ($index1 = 0; $index1 < $cantidadGallos; $index1++) {
-                                $gallo1 = $gallos[$index1];
-                                $familiaID1 = $gallo1['familiasId'];
-                                $galloPeso1 = round($gallo1['pesoReal'], 2); // Redondea a 2 decimales
-                                $galloAltura1 = round($gallo1['tamañoReal'], 2); // Redondea a 2 decimales
-                                $galloNacimiento1 = intval($gallo1['nacimiento']);
-
-                                // Verificar si el gallo ya fue cotejado manualmente
-                                if (in_array($gallo1['ID'], $gallosSeleccionados)) {
-                                    continue;
-                                }
-
-                                if ($exclusion && in_array($familiaID1, $excluidas)) {
-                                //    $gallosLibres[] = $gallo1;
-                                    continue;
-                                }
-                                $parejaEncontrada = false;
-                                $mejorDiferenciaPeso = $toleranciaPeso; // Inicializar con la máxima tolerancia de peso
-                                $mejorPareja = null;
-
-                                for ($index2 = $index1 + 1; $index2 < $cantidadGallos; $index2++) {
-                                    $gallo2 = $gallos[$index2];
-
-                                    if ($gallo1['familiasId'] == $gallo2['familiasId']) {
-                                        continue;
-                                    }
-
-                                    $galloPeso2 = round($gallo2['pesoReal'], 2); // Redondea a 2 decimales
-                                    $galloAltura2 = round($gallo2['tamañoReal'], 2); // Redondea a 2 decimales
-                                    $galloNacimiento2 = intval($gallo2['nacimiento']);
-
-                                    if ($exclusion && (in_array($familiaID2, $excluidas) || in_array($familiaID1, $excluidas))) {
-                                        continue;
-                                    }
-
-                                    $diferenciaPeso = abs($galloPeso1 - $galloPeso2);
-                                    $diferenciaAltura = abs($galloAltura1 - $galloAltura2);
-
-                                    if (
-                                        $diferenciaPeso <= $toleranciaPeso
-                                        && $diferenciaAltura <= $toleranciaAltura
-                                        && $diferenciaPeso < $mejorDiferenciaPeso
-                                        && !in_array($gallo1['ID'], $ids_cotejados)
-                                        && !in_array($gallo2['ID'], $ids_cotejados)
-                                        && (!$nacimiento || ($galloNacimiento1 == $galloNacimiento2
-                                            || (abs(intval($galloNacimiento1) - intval($galloNacimiento2)) == 1 && intval($galloNacimiento1) < intval($galloNacimiento2))
-                                        ))
-                                    ) {
-                                        $mejorDiferenciaPeso = $diferenciaPeso;
-                                        $mejorPareja = [$gallo1, $gallo2];
-                                        $parejaEncontrada = true;
-                                    }
-                                }
-
-                                if ($parejaEncontrada) {
-                                    $parejas[] = $mejorPareja;
-                                    $ids_cotejados[] = $mejorPareja[0]['ID'];
-                                    $ids_cotejados[] = $mejorPareja[1]['ID'];
-
-                                    //$index1 = 0;
-                                    //$parejaEncontradaTolerancia = true;
-                                    //break; //Salir del bucle al encontrar pareja
-                                } elseif (!in_array($gallo1['ID'], $ids_cotejados)) {
-                                    $gallosLibres[] = $gallo1;
-                                }/*elseif (!in_array($gallo1['ID'], $ids_cotejados)) {
-                                    if(!$parejaEncontradaTolerancia){
-                                        $gallosLibres[] = $gallo1;
-                                    }
-                                    
-                                }*/
-                            }
-
-                            /* Asignar los gallos no cotejados a gallosLibres
-                            foreach ($gallos as $gallo) {
-                                if (!in_array($gallo['ID'], $ids_cotejados)) {
-                                    $gallosLibres[] = $gallo;
-                                }
-                            }*/
-
-                            // Ordenar las parejas por pesoReal
-                            usort($parejas, function ($a, $b) {
-                                $peso1 = $a[0]['pesoReal'];
-                                $peso2 = $b[0]['pesoReal'];
-
-                                if ($peso1 == $peso2) {
-                                    return 0;
-                                }
-
-                                return ($peso1 < $peso2) ? -1 : 1;
-                            });
-                        ?>
-
-
-                            <table class="table table-sm flex-fill text-center" id="tabla_id">
-                                <!--<thead class="table-primary">
+                                    <?php foreach ($gallosDisponibles as $index => $gallo): ?>
                                         <tr>
-                                            <th>ITEM</th>
-                                            <th>Anillo</th>
-                                            <th>GalloL</th>
-                                            <th>AlturaL</th>
-                                            <th>PesoL</th>
-                                            <th>Anillo</th>
-                                            <th>GalloV</th>
-                                            <th>AlturaV</th>
-                                            <th>PesoV</th>
-                                            <th>Seleccionar</th>
-                                        </tr>
-                                </thead>-->
-                                <tbody>
-                                    <?php foreach ($parejas as $pareja) :
-                                        $gallo1 = $pareja[0];
-                                        $gallo2 = $pareja[1];
-
-                                        $familiasId1 = $gallo1['familiasId'];
-                                        $familiasId2 = $gallo2['familiasId'];
-
-                                        // Consulta para obtener los datos de la tabla 'familias'
-                                        $query1 = $conexion->prepare("SELECT nombre FROM familias WHERE codigo = :familiasId");
-                                        $query1->bindParam(':familiasId', $familiasId1);
-                                        $query1->execute();
-                                        $familia1 = $query1->fetch(PDO::FETCH_ASSOC);
-
-                                        $query2 = $conexion->prepare("SELECT nombre FROM familias WHERE codigo = :familiasId");
-                                        $query2->bindParam(':familiasId', $familiasId2);
-                                        $query2->execute();
-                                        $familia2 = $query2->fetch(PDO::FETCH_ASSOC);
-
-
-                                    ?>
-                                        <tr>
-                                            <td><?php echo $item1 += 1; ?></td>
-                                            <td><?php echo $gallo1['anillo']; ?></td>
-                                            <td><?php echo $familia1['nombre']; ?></td>
-                                            <td><?php echo $gallo1['tamañoReal']; ?></td>
-                                            <td><?php echo $gallo1['pesoReal']; ?></td>
-                                            <td><?php echo $gallo1['frente']; ?></td>
-                                            <td><?php echo $gallo1['nacimiento']; ?></td>
-                                            <td><?php echo $gallo2['anillo']; ?></td>
-                                            <td><?php echo $familia2['nombre']; ?></td>
-                                            <td><?php echo $gallo2['tamañoReal']; ?></td>
-                                            <td><?php echo $gallo2['pesoReal']; ?></td>
-                                            <td><?php echo $gallo2['frente']; ?></td>
-                                            <td><?php echo $gallo2['nacimiento']; ?></td>
-                                            <td><input type="checkbox" name="peleas[]" value="<?php echo $gallo1['ID'] . '-' . $gallo2['ID']; ?>"></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        <?php else : $parejas = $conexion->prepare("SELECT g1.*, g2.*, familias.nombre AS nombre_familia FROM gallos g1
-                            INNER JOIN gallos g2 ON g1.id <> g2.id AND (g1.pesoReal = g2.pesoReal AND g1.tamañoReal = g2.tamañoReal)
-                            INNER JOIN familias ON g1.familiasId <> g2.familiasId AND g1.familiasId = familias.codigo WHERE g1.torneoId = :torneoId AND g2.torneoId = :torneoId 
-                            ORDER BY g1.pesoReal ASC LIMIT $total_gallos");
-
-                            $parejas->bindParam(":torneoId", $torneoId);
-                            $parejas->execute();
-                            $parejas = $parejas->fetchAll(PDO::FETCH_ASSOC);
-                        ?>
-                            <table class="table table-sm flex-fill text-center text-bg-dark ">
-                                <!--<thead class="table-primary">
-                                        <tr>
-                                            <th>ITEM</th>
-                                            <th>Anillo</th>
-                                            <th>GalloL</th>
-                                            <th>TamañoL</th>
-                                            <th>PesoL</th>
-                                            <th>Anillo</th>
-                                            <th>GalloV</th>
-                                            <th>TamañoV</th>
-                                            <th>PesoV</th>
-                                            <th>Seleccionar</th>
-                                        </tr>
-                                    </thead>-->
-                                <tbody>
-                                    <?php
-                                    for ($i = 0; $i < count($parejas); $i += 2) :
-                                        $gallo1 = $parejas[$i];
-                                        $gallo2 = $parejas[$i + 1];
-                                    ?>
-                                        <tr>
-                                            <td><?php echo $item1 += 1; ?></td>
-                                            <td><?php echo $gallo1['anillo']; ?></td>
-                                            <td><?php echo $gallo1['nombre_familia']; ?></td>
-                                            <td><?php echo $gallo1['tamañoReal']; ?></td>
-                                            <td><?php echo $gallo1['pesoReal']; ?></td>
-                                            <td><?php echo $gallo1['frente']; ?></td>
-                                            <td><?php echo $gallo1['nacimiento']; ?></td>
-                                            <td><?php echo $gallo2['anillo']; ?></td>
-                                            <td><?php echo $gallo2['nombre_familia']; ?></td>
-                                            <td><?php echo $gallo2['tamañoReal']; ?></td>
-                                            <td><?php echo $gallo2['pesoReal']; ?></td>
-                                            <td><?php echo $gallo2['frente']; ?></td>
-                                            <td><?php echo $gallo2['nacimiento']; ?></td>
-                                            <td><input type="checkbox" name="peleas[]" value="<?php echo $gallo1['ID'] . '-' . $gallo2['ID']; ?>"></td>
-                                        </tr>
-                                    <?php endfor; ?>
-                                </tbody>
-                            </table>
-                        <?php endif; ?>
-
-                        <!--<div class="d-flex flex-column">
-                            <input type="hidden" name="peleaGenerada" value="1">
-                            <button name="peleasGenerada" type="submit" class="btn btn-success m-2">Pactar Peleas</button>
-                            <button type="submit" class="btn btn-success m-2">Liberar Peleas</button>
-                            <button type="submit" class="btn btn-success m-2">Imprimir</button>
-                    </div>-->
-
-                    </div>
-                </div>
-            </form>
-            <!--SECCIÓN DE GALLOS LIBRES-->
-            <div class="card container-fluid d-flex justify-content-center">
-
-                <div class="card-header">
-                    <span>Gallos Libres</span>
-                </div>
-
-                <div class="d-flex container-fluid ">
-                    <form class="contenidoGallosLibres" action="" enctype="multipart/form-data" method="post">
-
-                        <?php
-                        /* Obtener los gallos seleccionados
-                            if (isset($_POST['gallos']) && !empty($_POST['gallos'])) {
-                                print_r($_POST);
-                            $sentencia = $conexion->prepare("INSERT INTO `coteja` (`galloL`, `galloV`, `estado`, `torneoId`) VALUES (:galloL, :galloV, :estado, :torneoId)");
-                            $sentencia->bindParam(":torneoId", $torneoId);
-
-                            $galloL = '';
-                            $galloV = '';
-                           }*/
-
-                        // Verificar si se han enviado los IDs de los gallos seleccionados
-                        if (isset($_POST['gallos']) && !empty($_POST['gallos'])) {
-                            // Obtener los IDs de los gallos seleccionados
-                            $galloIds = $_POST['gallos'];
-
-                            // Verificar que se hayan seleccionado dos gallos
-                            if (count($galloIds) !== 2) {
-                                echo "Debe seleccionar exactamente 2 gallos para poder realizar la coteja manual.";
-                                exit();
-                            }
-
-                            // Obtener los IDs de los gallos seleccionados
-                            $galloL = $galloIds[0];
-                            $galloV = $galloIds[1];
-
-                            // Insertar los gallos en la tabla coteja
-                            $sentencia = $conexion->prepare("INSERT INTO `coteja` (`galloL`, `galloV`, `estado`, `torneoId`) VALUES (:galloL, :galloV, :estado, :torneoId)");
-                            $estado = 0; // Opcional: Define el valor del campo "estado" según tus requerimientos
-                            $sentencia->bindParam(":galloL", $galloL);
-                            $sentencia->bindParam(":galloV", $galloV);
-                            $sentencia->bindParam(":estado", $estado);
-                            $sentencia->bindParam(":torneoId", $torneoId); // Asegúrate de tener $torneoId definido previamente
-
-                            // Ejecutar la consulta
-                            if ($sentencia->execute()) {
-                                echo "Los gallos se cotejaron exitosamente.";
-                            } /*else {
-                                //echo "Error al cotejar los gallos. Por favor, inténtalo de nuevo.";
-                            }*/
-                        } /*else {
-                            echo "Debe seleccionar exactamente 2 gallos para poder realizar la coteja manual.";
-                        }*/
-                        ?>
-                        <div class="d-flex text-center justify-content-center">
-                            <button name="cotManual" type="button" class="btn btn-success btn-cotejar-manual m-2">Coteja Manual</button>
-                        </div>
-                        <div class="d-flex col-auto table-responsive">
-
-                            <table class="table flex-fill text-center">
-                                <thead class="table-primary">
-                                    <tr>
-                                        <th>ITEM</th>
-                                        <th>Anillo</th>
-                                        <th>Criadero</th>
-                                        <th>Tamaño</th>
-                                        <th>Peso</th>
-                                        <th>Frente</th>
-                                        <th>Mes Nac</th>
-                                        <th>Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($gallosLibres as $galloLibre) :
-
-                                        $familiasId1 = $galloLibre['familiasId'];
-                                        // Consulta para obtener los datos de la tabla 'familias'
-                                        $query1 = $conexion->prepare("SELECT nombre FROM familias WHERE codigo = :familiasId");
-                                        $query1->bindParam(':familiasId', $familiasId1);
-                                        $query1->execute();
-                                        $familia1 = $query1->fetch(PDO::FETCH_ASSOC);
-                                    ?>
-                                        <tr>
-                                            <td><?php echo $item2 += 1;
-                                                ?></td>
-                                            <td><?php echo $galloLibre['anillo'];
-                                                ?></td>
-                                            <td><?php echo $familia1['nombre'];
-                                                ?></td>
-                                            <td><?php echo $galloLibre['tamañoReal'];
-                                                ?></td>
-                                            <td><?php echo $galloLibre['pesoReal'];
-                                                ?></td>
-                                            <td><?php echo $galloLibre['frente'];
-                                                ?></td>
-                                            <td><?php echo $galloLibre['nacimiento'];
-                                                ?></td>
-                                            <td>
-                                                <input class="checkbox-gallo" type="checkbox" name="gallos[]" value="<?php echo $galloLibre['ID']; ?>">
-                                            </td>
+                                            <td><?php echo e((string) ($index + 1)); ?></td>
+                                            <td><?php echo e($gallo['anillo']); ?></td>
+                                            <td><?php echo e($gallo['nombre_familia']); ?></td>
+                                            <td><?php echo e((string) $gallo['pesoReal']); ?></td>
+                                            <td><?php echo e((string) $gallo['tamañoReal']); ?></td>
+                                            <td><?php echo e($gallo['frente']); ?></td>
+                                            <td><?php echo e((string) $gallo['nacimiento']); ?></td>
+                                            <td><?php echo e($gallo['nombre_representante']); ?></td>
+                                            <td><input type="checkbox" class="form-check-input js-limit-checkbox" data-limit="2" data-group="manual-coteja" name="cotejamiento[]" value="<?php echo e((string) $gallo['ID']); ?>"></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
                     </form>
-
-                </div>
-
+                <?php else: ?>
+                    <div class="empty-panel">
+                        <h3>No hay gallos disponibles</h3>
+                        <p>Todos los gallos del torneo ya tienen una coteja registrada.</p>
+                    </div>
+                <?php endif; ?>
             </div>
+        </div>
+    </div>
 
+    <div class="stack-grid">
+        <div class="card table-card">
+            <div class="card-header panel-toolbar">
+                <div>
+                    <div class="panel-title">Cotejas guardadas</div>
+                    <div class="panel-note">Seleccione aqui las cotejas que desea convertir en peleas pactadas.</div>
+                </div>
+                <button type="submit" form="form-pactar-peleas" class="btn btn-success btn-sm">Pactar seleccionadas</button>
+            </div>
+            <div class="card-body">
+                <?php if (!empty($cotejasGuardadas)): ?>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Anillo L</th>
+                                    <th>Criadero L</th>
+                                    <th>Peso L</th>
+                                    <th>Anillo V</th>
+                                    <th>Criadero V</th>
+                                    <th>Peso V</th>
+                                    <th>Seleccionar</th>
+                                    <th>Accion</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($cotejasGuardadas as $index => $coteja): ?>
+                                    <tr>
+                                        <td><?php echo e((string) ($index + 1)); ?></td>
+                                        <td><?php echo e($coteja['anilloL']); ?></td>
+                                        <td><?php echo e($coteja['nombre_familiaL']); ?></td>
+                                        <td><?php echo e((string) $coteja['pesoRealL']); ?></td>
+                                        <td><?php echo e($coteja['anilloV']); ?></td>
+                                        <td><?php echo e($coteja['nombre_familiaV']); ?></td>
+                                        <td><?php echo e((string) $coteja['pesoRealV']); ?></td>
+                                        <td><input type="checkbox" class="form-check-input" form="form-pactar-peleas" name="peleas[]" value="<?php echo e((string) $coteja['ID_Coteja']); ?>"></td>
+                                        <td>
+                                            <form method="post" class="d-inline">
+                                                <?php echo csrf_input(); ?>
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" name="eliminar_coteja" value="<?php echo e((string) $coteja['ID_Coteja']); ?>" data-confirm="Confirma quitar esta coteja?">Quitar</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="empty-panel">
+                        <h3>No hay cotejas guardadas</h3>
+                        <p>Primero genere propuestas o registre cotejas manuales.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
 
-    </section>
+        <div class="card table-card">
+            <div class="card-header panel-toolbar">
+                <div>
+                    <div class="panel-title">Propuestas automaticas</div>
+                    <div class="panel-note">El sistema aplica el filtro seleccionado y deja listas las mejores parejas encontradas.</div>
+                </div>
+                <span class="badge-soft"><?php echo e((string) count($parejasPropuestas)); ?> sugeridas</span>
+            </div>
+            <div class="card-body">
+                <?php if (!empty($parejasPropuestas)): ?>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Anillo L</th>
+                                    <th>Criadero L</th>
+                                    <th>Peso L</th>
+                                    <th>Altura L</th>
+                                    <th>Anillo V</th>
+                                    <th>Criadero V</th>
+                                    <th>Peso V</th>
+                                    <th>Altura V</th>
+                                    <th>Seleccionar</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($parejasPropuestas as $index => $pareja): ?>
+                                    <?php [$galloL, $galloV] = $pareja; ?>
+                                    <tr>
+                                        <td><?php echo e((string) ($index + 1)); ?></td>
+                                        <td><?php echo e($galloL['anillo']); ?></td>
+                                        <td><?php echo e($galloL['nombre_familia']); ?></td>
+                                        <td><?php echo e((string) $galloL['pesoReal']); ?></td>
+                                        <td><?php echo e((string) $galloL['tamañoReal']); ?></td>
+                                        <td><?php echo e($galloV['anillo']); ?></td>
+                                        <td><?php echo e($galloV['nombre_familia']); ?></td>
+                                        <td><?php echo e((string) $galloV['pesoReal']); ?></td>
+                                        <td><?php echo e((string) $galloV['tamañoReal']); ?></td>
+                                        <td><input type="checkbox" class="form-check-input" form="form-pactar-peleas" name="peleas[]" value="<?php echo e($galloL['ID'] . '-' . $galloV['ID']); ?>"></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                <?php else: ?>
+                    <div class="empty-panel">
+                        <h3>Sin propuestas para el filtro actual</h3>
+                        <p>Pruebe cambiando peso, altura, lote de analisis o revise las exclusiones activas del torneo.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
 
-</div>
+        <div class="card table-card">
+            <div class="card-header panel-toolbar">
+                <div>
+                    <div class="panel-title">Gallos libres</div>
+                    <div class="panel-note">Gallos del lote analizado que no encontraron pareja con los criterios seleccionados.</div>
+                </div>
+                <span class="badge-soft accent"><?php echo e((string) count($gallosFueraDeAnalisis)); ?> fuera del lote</span>
+            </div>
+            <div class="card-body">
+                <?php if (!empty($gallosLibres)): ?>
+                    <form method="post">
+                        <?php echo csrf_input(); ?>
+                        <input type="hidden" name="guardar_coteja_libre" value="1">
+                        <div class="mini-toolbar">
+                            <div class="panel-note">Puede elegir dos gallos libres y convertirlos en una coteja manual.</div>
+                            <button type="submit" class="btn btn-outline-primary btn-sm">Cotejar libres</button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Anillo</th>
+                                        <th>Criadero</th>
+                                        <th>Peso</th>
+                                        <th>Altura</th>
+                                        <th>Frente</th>
+                                        <th>Nacimiento</th>
+                                        <th>Seleccionar</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($gallosLibres as $index => $gallo): ?>
+                                        <tr>
+                                            <td><?php echo e((string) ($index + 1)); ?></td>
+                                            <td><?php echo e($gallo['anillo']); ?></td>
+                                            <td><?php echo e($gallo['nombre_familia']); ?></td>
+                                            <td><?php echo e((string) $gallo['pesoReal']); ?></td>
+                                            <td><?php echo e((string) $gallo['tamañoReal']); ?></td>
+                                            <td><?php echo e($gallo['frente']); ?></td>
+                                            <td><?php echo e((string) $gallo['nacimiento']); ?></td>
+                                            <td><input type="checkbox" class="form-check-input js-limit-checkbox" data-limit="2" data-group="gallos-libres" name="gallos[]" value="<?php echo e((string) $gallo['ID']); ?>"></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </form>
+                <?php else: ?>
+                    <div class="empty-panel">
+                        <h3>No quedaron gallos libres</h3>
+                        <p>El filtro resolvio el lote completo o no quedaron gallos disponibles para emparejar.</p>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($gallosFueraDeAnalisis)): ?>
+                    <div class="soft-panel mt-3">
+                        <strong>Disponibles fuera del lote:</strong>
+                        <?php echo e((string) count($gallosFueraDeAnalisis)); ?> gallos aun no fueron evaluados. Aumente el lote si desea incluirlos.
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</section>
+
 <script>
-    $(document).ready(function() {
-        $(".btn-cotejar-manual").click(function() {
-            var checkboxes = $(".checkbox-gallo:checked");
-            if (checkboxes.length === 2) {
-                var galloIds = checkboxes.map(function() {
-                    return this.value;
-                }).get();
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.js-limit-checkbox').forEach(function (checkbox) {
+            checkbox.addEventListener('change', function () {
+                var group = this.getAttribute('data-group');
+                var limit = parseInt(this.getAttribute('data-limit') || '0', 10);
+                var selected = document.querySelectorAll('.js-limit-checkbox[data-group="' + group + '"]:checked');
 
-                // Enviar los IDs de los gallos seleccionados al servidor mediante AJAX
-                $.ajax({
-                    url: "", // Deja esto en blanco para enviar la solicitud al mismo archivo actual
-                    type: "POST",
-                    data: {
-                        gallos: galloIds
-                    },
-                    success: function(response) {
-                        // Aquí puedes manejar la respuesta del servidor si es necesario
-                        alert("Los gallos se cotejaron exitosamente.");
-                        // Actualizar la página para reflejar los cambios en la tabla de "Coteja Manual"
-                        location.reload();
-                    },
-                    error: function(xhr, status, error) {
-                        // Manejar errores si es necesario
-                        console.error(error);
-                        alert("Error al cotejar los gallos. Por favor, inténtalo de nuevo.");
-                    }
-                });
-            } else {
-                alert("Selecciona exactamente 2 gallos para cotejar.");
-            }
+                if (limit > 0 && selected.length > limit) {
+                    this.checked = false;
+                    window.alert('Solo puede seleccionar ' + limit + ' registros en esta accion.');
+                }
+            });
         });
     });
 </script>
 
-<?php include("../../templates/footer.php"); ?>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>

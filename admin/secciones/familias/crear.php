@@ -1,91 +1,83 @@
 <?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if($_POST){
+require_auth();
 
-//Se realiza la recepción de los datos
-  $nombre=(isset($_POST['nombre']))?$_POST['nombre']:"";
-  $lugar=(isset($_POST['localidad']))?$_POST['localidad']:"";
- // $fecha=(isset($_POST['creacion']))?$_POST['creacion']:"";
-  $rep=(isset($_POST['representanteId']))?$_POST['representanteId']:"";
+$representantes = $conexion->query('SELECT ID, nombreCompleto FROM representante ORDER BY nombreCompleto ASC')->fetchAll();
 
-  $sentencia=$conexion->prepare("INSERT INTO `familias` (`codigo`, `nombre`, `localidad`, `representanteId`) VALUES (NULL, :nombre, :localidad, :representanteId)");
+$valores = [
+    'nombre' => '',
+    'localidad' => '',
+    'representanteId' => '',
+];
 
-  $sentencia->bindParam(":nombre",$nombre);
-  $sentencia->bindParam(":localidad",$lugar);
-  //$sentencia->bindParam(":fecha_creada",$fecha);
-  $sentencia->bindParam(":representanteId",$rep);
-    
-  if($sentencia->execute()){
-    $mensaje="Se creo el registro...!";
-    header("Location:index.php?mensaje= ".$mensaje);
-  }
-  else{
-    echo "El Registro no se agrego";
-  }
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
+
+    $valores['nombre'] = post('nombre');
+    $valores['localidad'] = post('localidad');
+    $valores['representanteId'] = post('representanteId');
+
+    if ($valores['nombre'] === '' || $valores['representanteId'] === '') {
+        $error = 'Complete los campos obligatorios.';
+    } else {
+        $sentencia = $conexion->prepare('INSERT INTO familias (nombre, localidad, representanteId) VALUES (:nombre, :localidad, :representante)');
+        $sentencia->bindValue(':nombre', $valores['nombre']);
+        $sentencia->bindValue(':localidad', $valores['localidad']);
+        $sentencia->bindValue(':representante', (int) $valores['representanteId'], PDO::PARAM_INT);
+        $sentencia->execute();
+
+        set_flash('success', 'Criadero creado correctamente.');
+        redirect_to('secciones/familias/');
+    }
 }
 
-//Con esta sentencias seleccionamos los datos de la tabla de representantes
-$sentencia=$conexion->prepare("SELECT * FROM representante WHERE ID");
-$sentencia->execute();
-
-$representante=$sentencia->fetchAll(PDO::FETCH_ASSOC);
-
-
-
-include ("../../templates/header.php");
-
+include __DIR__ . '/../../templates/header.php';
 ?>
 
-<div class="card">
-    <div class="card-header">
-        Crear Club u Organización
-    </div>
-    
+<div class="card shadow-sm border-0">
+    <div class="card-header">Crear criadero</div>
     <div class="card-body">
-        
-    <form action="" enctype="multipart/form-data" method="post">
+        <?php if ($error !== ''): ?>
+            <div class="alert alert-danger"><?php echo e($error); ?></div>
+        <?php endif; ?>
 
-        <div class="mb-3">
-          <label for="nombre" class="form-label">Cuerda</label>
-          <input type="text"
-            class="form-control" name="nombre" id="nombre" aria-describedby="helpId" placeholder="Nombre del Criadero">
-        </div>
+        <form method="post" class="row g-3">
+            <?php echo csrf_input(); ?>
 
-        <div class="mb-3">
-          <label for="representante" class="form-label">Representante: </label>
-          <select name="representanteId" id="representanteId" class="form-select">
-            <option value="">Seleccione el Representante</option>
-            <?php foreach ($representante as $datorep):
-              echo '<option value="'.$datorep["ID"].'">'.$datorep["nombreCompleto"].'</option>';
-            endforeach;
-            ?>
-          </select>
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="nombre">Nombre</label>
+                <input class="form-control" type="text" name="nombre" id="nombre" value="<?php echo e($valores['nombre']); ?>" required>
+            </div>
 
-        <div class="mb-3">
-          <label for="localidad" class="form-label">Lugar de Organización</label>
-          <input type="text"
-            class="form-control" name="localidad" id="localidad" aria-describedby="helpId" placeholder="Ingrese el lugar al que pertenece">
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="representanteId">Representante</label>
+                <select class="form-select" name="representanteId" id="representanteId" required>
+                    <option value="">Seleccione</option>
+                    <?php foreach ($representantes as $representante): ?>
+                        <option value="<?php echo e((string) $representante['ID']); ?>" <?php echo $valores['representanteId'] === (string) $representante['ID'] ? 'selected' : ''; ?>>
+                            <?php echo e($representante['nombreCompleto']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
 
-        <!--<div class="mb-3">
-          <label for="creacion" class="form-label">Fecha de Creación</label>
-          <input type="date"
-            class="form-control" name="creacion" id="creacion" aria-describedby="helpId" placeholder="Fecha desde que inicio">
-        </div>-->
+            <div class="col-md-6">
+                <label class="form-label" for="localidad">Localidad</label>
+                <input class="form-control" type="text" name="localidad" id="localidad" value="<?php echo e($valores['localidad']); ?>">
+            </div>
 
-       <button type="submit" class="btn btn-success">Guardar</button>
-       <a name="" id="" class="btn btn-primary" href="index.php" role="button">Cancelar</a>
-
-    </form>
-
-    </div>
-    <div class="card-footer text-muted">
-    
-
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-success" type="submit">Guardar</button>
+                <a class="btn btn-outline-secondary" href="index.php">Cancelar</a>
+            </div>
+        </form>
     </div>
 </div>
 
-<?php include ("../../templates/footer.php");?>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>
+

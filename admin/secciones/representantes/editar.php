@@ -1,100 +1,89 @@
-<?php 
+<?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if(isset($_GET['txtID'])){
-    //En esta sentencias se recuperan los datos a editar con el ID que se escoja
-    $txtID=(isset($_GET['txtID']))?$_GET['txtID']:"";
+require_auth();
 
-    $sentencia=$conexion->prepare("SELECT * FROM representante WHERE ID=:id");
-    $sentencia->bindParam(":id",$txtID);
-    $sentencia->execute();
+$txtID = isset($_GET['txtID']) ? (int) $_GET['txtID'] : 0;
 
-    $registro=$sentencia->fetch(PDO::FETCH_LAZY);
-
-    $datos=$registro['nombreCompleto'];
-    //$localidad=$registro['localidad'];
-    //$nacimiento=$registro['fechaNac'];
-    //$correo=$registro['correo'];
+if ($txtID <= 0) {
+    set_flash('warning', 'Representante no valido.');
+    redirect_to('secciones/representantes/');
 }
 
-if($_POST){
+$consulta = $conexion->prepare('SELECT * FROM representante WHERE ID = :id');
+$consulta->bindValue(':id', $txtID, PDO::PARAM_INT);
+$consulta->execute();
+$registro = $consulta->fetch();
 
-  $txtID=(isset($_POST['txtID']))?$_POST['txtID']:"";
-
-  $datos=(isset($_POST['nombreCompleto']))?$_POST['nombreCompleto']:"";
-  //$localidad=(isset($_POST['localidad']))?$_POST['localidad']:"";
-  //$nacimiento=(isset($_POST['fechaNac']))?$_POST['fechaNac']:"";
-  //$correo=(isset($_POST['correo']))?$_POST['correo']:"";
-
-  $sentencia=$conexion->prepare("UPDATE `representante` SET nombreCompleto=:nombreCompleto WHERE ID=:id");
-
-  $sentencia->bindParam(":nombreCompleto",$datos);
-  //$sentencia->bindParam(":localidad",$localidad);
-  //$sentencia->bindParam(":fechaNac",$nacimiento);
-  //$sentencia->bindParam(":correo",$correo);
-
-  $sentencia->bindParam(":id",$txtID);
-
-  $sentencia->execute();
-
-  if($sentencia === TRUE){
-    echo "Cambios guardados";
-  }else{
-    echo "No se pudo actualizar. ";
-    print_r($sentencia->errorInfo());
-  } 
-
-  $mensaje="Se edito el registro...!";
-  header("Location:index.php?mensaje= ".$mensaje);
-
+if (!$registro) {
+    set_flash('warning', 'Representante no encontrado.');
+    redirect_to('secciones/representantes/');
 }
 
-include ("../../templates/header.php");?>
+$valores = [
+    'nombreCompleto' => $registro['nombreCompleto'],
+    'localidad' => $registro['localidad'],
+];
 
+$error = '';
 
-<div class="card">
-    <div class="card-header">
-        Editar Representante
-    </div>
-    
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
+
+    $valores['nombreCompleto'] = post('nombreCompleto');
+    $valores['localidad'] = post('localidad');
+
+    if ($valores['nombreCompleto'] === '') {
+        $error = 'Ingrese el nombre del representante.';
+    } else {
+        $actualiza = $conexion->prepare('UPDATE representante SET nombreCompleto = :nombre, localidad = :localidad WHERE ID = :id');
+        $actualiza->bindValue(':nombre', $valores['nombreCompleto']);
+        $actualiza->bindValue(':localidad', $valores['localidad']);
+        $actualiza->bindValue(':id', $txtID, PDO::PARAM_INT);
+        $actualiza->execute();
+
+        set_flash('success', 'Representante actualizado correctamente.');
+        redirect_to('secciones/representantes/');
+    }
+}
+
+include __DIR__ . '/../../templates/header.php';
+?>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header">Editar representante</div>
     <div class="card-body">
-        
-      <form action="" enctype="multipart/form-data" method="post">
+        <?php if ($error !== ''): ?>
+            <div class="alert alert-danger"><?php echo e($error); ?></div>
+        <?php endif; ?>
 
-          <div class="mb-3">
-            <label for="txtID" class="form-label">ID:</label>
-            <input readonly value="<?php echo $txtID;?>" type="text"
-              class="form-control" name="txtID" id="txtID" aria-describedby="helpId" placeholder="ID">
-          </div>
+        <form method="post" class="row g-3">
+            <?php echo csrf_input(); ?>
 
-          <div class="mb-3">
-            <label for="nombreCompleto" class="form-label">Nombres y Apellidos</label>
-            <input value="<?php echo $datos;?>" type="text"
-              class="form-control" name="nombreCompleto" id="nombreCompleto" aria-describedby="helpId" placeholder="Nombres y Apellidos">
-          </div>
+            <div class="col-md-2">
+                <label class="form-label" for="txtID">ID</label>
+                <input class="form-control" type="text" id="txtID" value="<?php echo e((string) $txtID); ?>" readonly>
+            </div>
 
-          <!--<div class="mb-3">
-            <label for="localidad" class="form-label">Lugar</label>
-            <input value="<?php //echo $localidad;?>" type="text"
-              class="form-control" name="localidad" id="localidad" aria-describedby="helpId" placeholder="Lugar del Criadero">
-          </div>
+            <div class="col-md-6">
+                <label class="form-label" for="nombreCompleto">Nombres y apellidos</label>
+                <input class="form-control" type="text" name="nombreCompleto" id="nombreCompleto" value="<?php echo e($valores['nombreCompleto']); ?>" required>
+            </div>
 
-          <div class="mb-3">
-            <label for="fechaNac" class="form-label">Fecha de Nacimiento</label>
-            <input value="<?php //echo $nacimiento;?>" type="date"
-              class="form-control" name="fechaNac" id="fechaNac" aria-describedby="helpId" placeholder="Fecha de Nacimiento">
-          </div>
+            <div class="col-md-4">
+                <label class="form-label" for="localidad">Localidad</label>
+                <input class="form-control" type="text" name="localidad" id="localidad" value="<?php echo e($valores['localidad']); ?>">
+            </div>
 
-          <div class="mb-3">
-            <label for="correo" class="form-label">Correo Electronico</label>
-            <input value="<?php //echo $correo;?>" type="text"
-              class="form-control" name="correo" id="correo" aria-describedby="helpId" placeholder="correo">
-          </div>-->
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-success" type="submit">Actualizar</button>
+                <a class="btn btn-outline-secondary" href="index.php">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
 
-        <button type="submit" class="btn btn-success">Actualizar</button>
-        <a name="" id="" class="btn btn-primary" href="index.php" role="button">Cancelar</a>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>
 
-      </form>
-
-<?php include ("../../templates/footer.php");?>

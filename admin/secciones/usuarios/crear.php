@@ -1,85 +1,99 @@
 <?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if($_POST){
+require_auth();
 
-//Se realiza la recepción de los datos
-  $nombre=(isset($_POST['nombre']))?$_POST['nombre']:"";
-  $correo=(isset($_POST['correo']))?$_POST['correo']:"";
-  $usuario=(isset($_POST['usuario']))?$_POST['usuario']:"";
-  $clave=(isset($_POST['clave']))?$_POST['clave']:"";
-  $empresa=(isset($_POST['dependencia']))?$_POST['dependencia']:"";
+$valores = [
+    'nombre' => '',
+    'correo' => '',
+    'usuario' => '',
+    'dependencia' => '',
+];
 
-  $sentencia=$conexion->prepare("INSERT INTO `usuarios` (`ID`, `nombre`, `correo`, `apodo`, `clave`, `empresa`) VALUES (NULL, :nombre, :correo, :usuario, :clave, :dependencia)");
+$error = '';
 
-  $sentencia->bindParam(":nombre",$nombre);
-  $sentencia->bindParam(":correo",$correo);
-  $sentencia->bindParam(":usuario",$usuario);
-  $sentencia->bindParam(":clave",$clave);
-  $sentencia->bindParam(":dependencia",$empresa);
-    
-  if($sentencia->execute()){
-    $mensaje="Se creo el registro...!";
-    header("Location:index.php?mensaje= ".$mensaje);
-  }
-  else{
-    echo "El Registro no se agrego";
-  }
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
+
+    $valores['nombre'] = post('nombre');
+    $valores['correo'] = post('correo');
+    $valores['usuario'] = post('usuario');
+    $valores['dependencia'] = post('dependencia');
+    $clave = post('clave');
+
+    if (in_array('', [$valores['nombre'], $valores['correo'], $valores['usuario'], $clave], true)) {
+        $error = 'Complete los campos obligatorios.';
+    } elseif (!filter_var($valores['correo'], FILTER_VALIDATE_EMAIL)) {
+        $error = 'Ingrese un correo valido.';
+    } else {
+        $verifica = $conexion->prepare('SELECT COUNT(*) FROM usuarios WHERE apodo = :usuario');
+        $verifica->bindValue(':usuario', $valores['usuario']);
+        $verifica->execute();
+
+        if ((int) $verifica->fetchColumn() > 0) {
+            $error = 'El usuario ya existe.';
+        } else {
+            $sentencia = $conexion->prepare('INSERT INTO usuarios (nombre, correo, apodo, clave, empresa) VALUES (:nombre, :correo, :usuario, :clave, :empresa)');
+            $sentencia->bindValue(':nombre', $valores['nombre']);
+            $sentencia->bindValue(':correo', $valores['correo']);
+            $sentencia->bindValue(':usuario', $valores['usuario']);
+            $sentencia->bindValue(':clave', password_hash($clave, PASSWORD_DEFAULT));
+            $sentencia->bindValue(':empresa', $valores['dependencia']);
+            $sentencia->execute();
+
+            set_flash('success', 'Usuario creado correctamente.');
+            redirect_to('secciones/usuarios/');
+        }
+    }
 }
-include ("../../templates/header.php");
 
+include __DIR__ . '/../../templates/header.php';
 ?>
 
-<div class="card w3layouts-main">
-    <div class="card-header">
-        Crear Usuarios
-    </div>
-    
+<div class="card shadow-sm border-0">
+    <div class="card-header">Crear usuario</div>
     <div class="card-body">
-        
-    <form action="" enctype="multipart/form-data" method="post">
+        <?php if ($error !== ''): ?>
+            <div class="alert alert-danger"><?php echo e($error); ?></div>
+        <?php endif; ?>
 
-        <div class="mb-3">
-          <label for="nombre" class="form-label">Nombres y Apellidos</label>
-          <input type="text"
-            class="form-control" name="nombre" id="nombre" aria-describedby="helpId" placeholder="Ingrese su Nombre y Apellido">
-        </div>
+        <form method="post" class="row g-3">
+            <?php echo csrf_input(); ?>
 
-        <div class="mb-3">
-          <label for="correo" class="form-label">Correo-e</label>
-          <input type="email"
-            class="form-control" name="correo" id="correo" aria-describedby="helpId" placeholder="Ingrese su Correo">
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="nombre">Nombres y apellidos</label>
+                <input class="form-control" type="text" name="nombre" id="nombre" value="<?php echo e($valores['nombre']); ?>" required>
+            </div>
 
-        <div class="mb-3">
-          <label for="usuario" class="form-label">Usuario</label>
-          <input type="text"
-            class="form-control" name="usuario" id="usuario" aria-describedby="helpId" placeholder="Ingrese su Usuario">
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="correo">Correo</label>
+                <input class="form-control" type="email" name="correo" id="correo" value="<?php echo e($valores['correo']); ?>" required>
+            </div>
 
-        <div class="mb-3">
-          <label for="password" class="form-label">Contraseña</label>
-          <input type="password"
-            class="form-control" name="clave" id="clave" aria-describedby="helpId" placeholder="Ingrese su Contraseña">
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="usuario">Usuario</label>
+                <input class="form-control" type="text" name="usuario" id="usuario" value="<?php echo e($valores['usuario']); ?>" required>
+            </div>
 
-        <div class="mb-3">
-          <label for="dependencia" class="form-label">Dependencia</label>
-          <input type="text"
-            class="form-control" name="dependencia" id="dependencia" aria-describedby="helpId" placeholder="Ingrese nombre de su Empresa">
-        </div>
+            <div class="col-md-6">
+                <label class="form-label" for="clave">Contrasena</label>
+                <input class="form-control" type="password" name="clave" id="clave" required>
+            </div>
 
-       <button type="submit" class="btn btn-success"> Guardar</button>
-       <a name="" id="" class="btn btn-primary" href="index.php" role="button">Cancelar</a>
+            <div class="col-md-6">
+                <label class="form-label" for="dependencia">Dependencia</label>
+                <input class="form-control" type="text" name="dependencia" id="dependencia" value="<?php echo e($valores['dependencia']); ?>">
+            </div>
 
-    </form>
-
-    </div>
-    <div class="card-footer text-muted">
-    
-
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-success" type="submit">Guardar</button>
+                <a class="btn btn-outline-secondary" href="index.php">Cancelar</a>
+            </div>
+        </form>
     </div>
 </div>
 
-<?php include ("../../templates/footer.php");?>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>
+

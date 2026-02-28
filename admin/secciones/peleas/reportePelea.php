@@ -1,118 +1,109 @@
 <?php
-error_reporting(E_ERROR | E_WARNING | E_PARSE);
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
-}
+require_auth();
+start_secure_session();
 
 ob_start();
+$context = require_tournament_context('Seleccione un torneo antes de imprimir el reporte.');
+$torneoId = $context['torneoId'];
+$nombreTorneo = $context['nombreTorneo'];
 
-$item = 0;
-$nombreTorneo = $_SESSION['nombreTorneo'];
-$torneoId = $_SESSION['torneoId'];
-
-$sentencia = $conexion->prepare("SELECT p.ID_Pelea, p.galloL, p.galloV, 
-                gl.anillo AS anilloL, gl.pesoReal AS pesoRealL, gl.frente AS frenteL, fl.nombre AS nombre_familiaL, gv.anillo AS anilloV, gv.pesoReal AS pesoRealV, gv.frente AS frenteV, fv.nombre AS nombre_familiaV FROM peleas p
-                INNER JOIN gallos gl ON p.galloL = gl.ID
-                INNER JOIN gallos gv ON p.galloV = gv.ID
-                INNER JOIN familias fl ON gl.familiasId = fl.codigo
-                INNER JOIN familias fv ON gv.familiasId = fv.codigo
-                WHERE p.torneoId = :torneoId ORDER BY RAND()");
-$sentencia->bindParam(":torneoId", $torneoId);
+$sentencia = $conexion->prepare('
+    SELECT p.ID_Pelea, p.estado, p.ganador,
+           gl.ID AS idL, gl.anillo AS anilloL, gl.pesoReal AS pesoRealL, gl.frente AS frenteL, fl.nombre AS nombre_familiaL,
+           gv.ID AS idV, gv.anillo AS anilloV, gv.pesoReal AS pesoRealV, gv.frente AS frenteV, fv.nombre AS nombre_familiaV
+    FROM peleas p
+    INNER JOIN gallos gl ON p.galloL = gl.ID
+    INNER JOIN gallos gv ON p.galloV = gv.ID
+    INNER JOIN familias fl ON gl.familiasId = fl.codigo
+    INNER JOIN familias fv ON gv.familiasId = fv.codigo
+    WHERE p.torneoId = :torneoId
+    ORDER BY p.ID_Pelea ASC
+');
+$sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
 $sentencia->execute();
-$listaPeleas = $sentencia->fetchAll(PDO::FETCH_ASSOC);
+$listaPeleas = $sentencia->fetchAll();
 
-
-include("../../templates/header.subRep.php");
-
+include __DIR__ . '/../../templates/header.subRep.php';
 ?>
-
-<!-- Agregar estilos CSS para el logo y la tabla -->
 <style>
-    h3 p{
-        
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 14px;
+    body {
+        font-family: Arial, sans-serif;
+        font-size: 12px;
     }
-    .logo {
-        margin-top: 0;
-        width: 240px;
-        height: 80px;
+    h1, h2, p {
+        text-align: center;
+        margin: 0 0 10px 0;
     }
-
     table {
-        margin-top: 20px;
         width: 100%;
         border-collapse: collapse;
-        font-family: 'Courier New', Courier, monospace;
-        
+        margin-top: 16px;
     }
-
     th, td {
-        padding: 5px;
-        border: 1px solid #ccc;
+        border: 1px solid #bbb;
+        padding: 6px;
         font-size: 10px;
+        text-align: center;
     }
 </style>
 
-<h3 class="text-center">LISTADO DE PELEAS</h3>
-<p><?php setlocale(LC_TIME, 'es_ES.UTF-8');
-     echo date("d-m-Y");?></p>
+<h1><?php echo e($nombreTorneo); ?></h1>
+<h2>Listado de peleas</h2>
+<p>Fecha de impresion: <?php echo e(date('Y-m-d')); ?></p>
 
-<table class="text-center">
+<table>
     <thead>
         <tr>
-            <th>Pelea #</th>
-            <th>Anillo</th>
-            <th>Criadero</th>
-            <th>Frente</th>
-            <th>Peso</th>
-            <th></th>
-            <th>Anillo</th>
-            <th>Criadero</th>
-            <th>Frente</th>
-            <th>Peso</th>
-            <th>RESULTADO</th>
+            <th>#</th>
+            <th>Anillo A</th>
+            <th>Criadero A</th>
+            <th>Peso A</th>
+            <th>Anillo B</th>
+            <th>Criadero B</th>
+            <th>Peso B</th>
+            <th>Estado</th>
+            <th>Ganador</th>
         </tr>
     </thead>
     <tbody>
-        <?php foreach ($listaPeleas as $pelea) { ?>
+        <?php foreach ($listaPeleas as $index => $pelea): ?>
             <tr>
-                <td><?php echo $item += 1; ?></td>
-                <td><?php echo $pelea['anilloL']; ?></td>
-                <td><?php echo $pelea['nombre_familiaL']; ?></td>
-                <td><?php echo $pelea['frenteL']; ?></td>
-                <td><?php echo $pelea['pesoRealL']; ?></td>
-                <td><span>VS</span></td>
-                <td><?php echo $pelea['anilloV']; ?></td>
-                <td><?php echo $pelea['nombre_familiaV']; ?></td>
-                <td><?php echo $pelea['frenteV']; ?></td>
-                <td><?php echo $pelea['pesoRealV']; ?></td>
-                <td></td>
+                <td><?php echo e((string) ($index + 1)); ?></td>
+                <td><?php echo e($pelea['anilloL']); ?></td>
+                <td><?php echo e($pelea['nombre_familiaL']); ?></td>
+                <td><?php echo e((string) $pelea['pesoRealL']); ?></td>
+                <td><?php echo e($pelea['anilloV']); ?></td>
+                <td><?php echo e($pelea['nombre_familiaV']); ?></td>
+                <td><?php echo e((string) $pelea['pesoRealV']); ?></td>
+                <td><?php echo e($pelea['estado']); ?></td>
+                <td>
+                    <?php
+                        $ganador = '';
+                        if ((string) $pelea['ganador'] === (string) $pelea['idL']) {
+                            $ganador = $pelea['anilloL'];
+                        } elseif ((string) $pelea['ganador'] === (string) $pelea['idV']) {
+                            $ganador = $pelea['anilloV'];
+                        }
+                        echo e($ganador);
+                    ?>
+                </td>
             </tr>
-        <?php } ?>
+        <?php endforeach; ?>
     </tbody>
 </table>
-
-<?php 
+</body>
+</html>
+<?php
 $html = ob_get_clean();
 
-require_once '../../Libreria/dompdf/autoload.inc.php';
-use Dompdf\Dompdf;
-$dompdf = new Dompdf();
+require_once __DIR__ . '/../../Libreria/dompdf/autoload.inc.php';
 
-$options = $dompdf->getOptions();
-$options->set(array('isRemoteEnabled' => true));
-$dompdf->setOptions($options);
-
+$dompdf = new Dompdf\Dompdf();
 $dompdf->loadHtml($html);
-
 $dompdf->setPaper('A4', 'portrait');
-
 $dompdf->render();
-
-$dompdf->stream("listaPelea.pdf", array("Attachment" => false));
-
-?>
+$dompdf->stream('listaPeleas.pdf', ['Attachment' => false]);

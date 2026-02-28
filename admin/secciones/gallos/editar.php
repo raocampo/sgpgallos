@@ -1,199 +1,178 @@
 <?php
-error_reporting(E_ERROR | E_WARNING | E_PARSE);
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if (isset($_GET['txtID'])) {
-  //En esta sentencias se recuperan los datos a editar con el ID que se escoja
-  $txtID = (isset($_GET['txtID'])) ? $_GET['txtID'] : "";
+require_auth();
+start_secure_session();
+$context = require_tournament_context('Seleccione un torneo antes de editar gallos.');
+$torneoId = $context['torneoId'];
+$nombreTorneo = $context['nombreTorneo'];
+$txtID = isset($_GET['txtID']) ? (int) $_GET['txtID'] : 0;
 
-  $sentencia = $conexion->prepare("SELECT * FROM gallos WHERE ID=:id");
-  $sentencia->bindParam(":id", $txtID);
-  $sentencia->execute();
-
-  $registro = $sentencia->fetch(PDO::FETCH_LAZY);
-
-  $anillo = $registro['anillo'];
-  $pesoR = $registro['pesoReal'];
-  $alturaR = $registro['tamañoReal'];
-  $placa = $registro['placa'];
-  $nacimiento = $registro['nacimiento'];
-  $frente = $registro['frente'];
-  $familia = $registro['familiasId'];
-  $representante = $registro['representanteId'];
+if ($torneoId <= 0 || $txtID <= 0) {
+    set_flash('warning', 'Gallo no valido.');
+    redirect_to('secciones/torneos/');
 }
 
-if ($_POST) {
+$consulta = $conexion->prepare('SELECT * FROM gallos WHERE ID = :id AND torneoId = :torneoId');
+$consulta->bindValue(':id', $txtID, PDO::PARAM_INT);
+$consulta->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+$consulta->execute();
+$registro = $consulta->fetch();
 
-  $txtID = (isset($_POST['txtID'])) ? $_POST['txtID'] : "";
-  $anillo = (isset($_POST['anillo'])) ? $_POST['anillo'] : "";
-  $pesoR = (isset($_POST['pesoReal'])) ? $_POST['pesoReal'] : "";
-  $alturaR = (isset($_POST['alturaReal'])) ? $_POST['alturaReal'] : "";
-  $placa = (isset($_POST['placa'])) ? $_POST['placa'] : "";
-  $nacimiento = (isset($_POST['nacimiento'])) ? $_POST['nacimiento'] : "";
-  $frente = (isset($_POST['frente'])) ? $_POST['frente'] : "";
-  $familia = (isset($_POST['familiasId'])) ? $_POST['familiasId'] : "";
-  $representante = (isset($_POST['representanteId'])) ? $_POST['representanteId'] : "";
+if (!$registro) {
+    set_flash('warning', 'Gallo no encontrado.');
+    redirect_to('secciones/gallos/?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
+}
 
-  /*$color=(isset($_POST['color']))?$_POST['color']:"";
-  $imagen=(isset($_FILES['imagen']['name']))?$_FILES['imagen']['name']:"";
-  $raza=(isset($_POST['raza']))?$_POST['raza']:"";*/
+$familias = $conexion->query('SELECT codigo, nombre FROM familias ORDER BY nombre ASC')->fetchAll();
+$representantes = $conexion->query('SELECT ID, nombreCompleto FROM representante ORDER BY nombreCompleto ASC')->fetchAll();
 
-  $sentencia = $conexion->prepare("UPDATE `gallos` INNER JOIN familias ON gallos.familiasId = familias.codigo
-  INNER JOIN representante ON gallos.representanteId = representante.ID SET gallos.anillo=:anillo, gallos.pesoReal=:pesoReal, gallos.tamañoReal=:alturaReal, gallos.placa=:placa, gallos.nacimiento=:nacimiento, gallos.frente=:frente, gallos.familiasId=:familiasId, gallos.representanteId=:representanteId WHERE gallos.ID=:id");
+$valores = [
+    'anillo' => $registro['anillo'],
+    'pesoReal' => (string) $registro['pesoReal'],
+    'alturaReal' => (string) $registro['tamañoReal'],
+    'placa' => $registro['placa'],
+    'nacimiento' => $registro['nacimiento'],
+    'frente' => $registro['frente'],
+    'familiasId' => (string) $registro['familiasId'],
+    'representanteId' => (string) $registro['representanteId'],
+];
 
-  $sentencia->bindParam(":anillo", $anillo);
-  $sentencia->bindParam(":pesoReal", $pesoR);
-  $sentencia->bindParam(":alturaReal", $alturaR);
-  $sentencia->bindParam(":placa", $placa);
-  $sentencia->bindParam(":nacimiento", $nacimiento);
-  $sentencia->bindParam(":frente", $frente);
-  $sentencia->bindParam(":familiasId", $familia);
-  $sentencia->bindParam(":representanteId", $representante);
+$error = '';
 
-  $sentencia->bindParam(":id", $txtID);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
 
-  $sentencia->execute();
-
-  if ($sentencia === TRUE) {
-    echo "Cambios guardados";
-  } else {
-    echo "No se pudo actualizar. ";
-    print_r($sentencia->errorInfo());
-  }
-
-  $mensaje = "Se edito el registro...!";
-  header("Location:index.php?mensaje= " . $mensaje);
-
-  /*$sentencia->bindParam(":color",$color);
-  $sentencia->bindParam(":raza",$raza);
-  if($_FILES["imagen"]["tmp_name"]!=""){
-
-    $imagen=(isset($_FILES["imagen"]["name"]))?$_FILES["imagen"]["name"]:"";
-
-    $fecha_image=new DateTime();
-    $nombre_archivo_imagen=($imagen!="")? $fecha_imagen->getTimestamp()."_".$imagen:"";
-
-    $tmp_imagen=$_FILES["imagen"]["tmp_name"];
-    if($tmp_imagen!=""){
-      move_uploaded_file($tmp_imagen,"../../../assets/img/gallos/".$nombre_archivo_imagen);
+    foreach ($valores as $campo => $valor) {
+        $valores[$campo] = post($campo);
     }
-    
-    
-    /*$txtID=(isset($_GET['txtID']))?$_GET['txtID']:"";
 
-    $sentencia=$conexion->prepare("SELECT imagen FROM gallos WHERE ID=:id");
-    $sentencia->bindParam(":id",$txtID);
-    $sentencia->execute();
-    $registro_imagen=$sentencia->fetch(PDO::FETCH_LAZY);
+    if ($valores['anillo'] === '' || $valores['pesoReal'] === '' || $valores['alturaReal'] === '' || $valores['familiasId'] === '' || $valores['representanteId'] === '') {
+        $error = 'Complete los campos obligatorios.';
+    } else {
+        $verifica = $conexion->prepare('SELECT COUNT(*) FROM gallos WHERE anillo = :anillo AND torneoId = :torneoId AND ID <> :id');
+        $verifica->bindValue(':anillo', $valores['anillo']);
+        $verifica->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+        $verifica->bindValue(':id', $txtID, PDO::PARAM_INT);
+        $verifica->execute();
 
-    if(isset($registro_imagen["imagen"])){
+        if ((int) $verifica->fetchColumn() > 0) {
+            $error = 'Ya existe otro gallo con ese anillo en el torneo actual.';
+        } else {
+            try {
+                $actualiza = $conexion->prepare('
+                    UPDATE gallos
+                    SET anillo = :anillo,
+                        pesoReal = :pesoReal,
+                        tamañoReal = :tamanoReal,
+                        placa = :placa,
+                        nacimiento = :nacimiento,
+                        frente = :frente,
+                        familiasId = :familiasId,
+                        representanteId = :representanteId
+                    WHERE ID = :id AND torneoId = :torneoId
+                ');
+                $actualiza->bindValue(':anillo', $valores['anillo']);
+                $actualiza->bindValue(':pesoReal', $valores['pesoReal']);
+                $actualiza->bindValue(':tamanoReal', $valores['alturaReal']);
+                $actualiza->bindValue(':placa', $valores['placa']);
+                $actualiza->bindValue(':nacimiento', $valores['nacimiento']);
+                $actualiza->bindValue(':frente', $valores['frente']);
+                $actualiza->bindValue(':familiasId', (int) $valores['familiasId'], PDO::PARAM_INT);
+                $actualiza->bindValue(':representanteId', (int) $valores['representanteId'], PDO::PARAM_INT);
+                $actualiza->bindValue(':id', $txtID, PDO::PARAM_INT);
+                $actualiza->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+                $actualiza->execute();
 
-        if(file_exists("../../../assets/img/gallos/".$registro_imagen["imagen"])){
-            
-            unlink("../../../assets/img/gallos/".$registro_imagen["imagen"]);
-        
+                set_flash('success', 'Gallo actualizado correctamente.');
+                redirect_to('secciones/gallos/?nombreTorneo=' . urlencode((string) $_SESSION['nombreTorneo']) . '&torneoId=' . $torneoId);
+            } catch (Throwable $errorDb) {
+                $error = 'No fue posible actualizar el gallo.';
+            }
         }
     }
-
-    $sentencia=$conexion->prepare("UPDATE `gallos` SET imagen=:imagen, WHERE id=:ID");
-    $sentencia->bindParam(":imagen",$nombre_archivo_imagen);
-    $sentencia->bindParam(":id",$txtID);
-    $sentencia->execute();
-
-  }*/
 }
 
-//Con esta sentencias seleccionamos los datos de la tabla de familias
-$sentencia = $conexion->prepare("SELECT * FROM familias WHERE codigo");
-$sentencia->execute();
+include __DIR__ . '/../../templates/header.sub.php';
+?>
 
-$familias = $sentencia->fetchAll(PDO::FETCH_ASSOC);
+<div class="card shadow-sm border-0">
+    <div class="card-header">Editar gallo</div>
+    <div class="card-body">
+        <?php if ($error !== ''): ?>
+            <div class="alert alert-danger"><?php echo e($error); ?></div>
+        <?php endif; ?>
 
-//Con esta sentencias seleccionamos los datos de la tabla de representantes
-$sentencia = $conexion->prepare("SELECT * FROM representante WHERE ID");
-$sentencia->execute();
+        <form method="post" class="row g-3">
+            <?php echo csrf_input(); ?>
 
-$representantes = $sentencia->fetchAll(PDO::FETCH_ASSOC);
+            <div class="col-md-2">
+                <label class="form-label" for="txtID">ID</label>
+                <input class="form-control" type="text" id="txtID" value="<?php echo e((string) $txtID); ?>" readonly>
+            </div>
 
-//Con esta sentencias seleccionamos los datos de la tabla de torneos
-$sentencia=$conexion->prepare("SELECT * FROM `torneos`");
-$sentencia->execute();
+            <div class="col-md-4">
+                <label class="form-label" for="anillo">Anillo</label>
+                <input class="form-control" type="text" name="anillo" id="anillo" value="<?php echo e($valores['anillo']); ?>" required>
+            </div>
 
-$lista_torn=$sentencia->fetchAll(PDO::FETCH_ASSOC);
+            <div class="col-md-3">
+                <label class="form-label" for="pesoReal">Peso</label>
+                <input class="form-control" type="number" step="0.01" name="pesoReal" id="pesoReal" value="<?php echo e($valores['pesoReal']); ?>" required>
+            </div>
 
-include("../../templates/header.sub.php"); ?>
+            <div class="col-md-3">
+                <label class="form-label" for="alturaReal">Tamano</label>
+                <input class="form-control" type="number" step="0.01" name="alturaReal" id="alturaReal" value="<?php echo e($valores['alturaReal']); ?>" required>
+            </div>
 
-<div class="card-header">
-  Modificar Gallos
+            <div class="col-md-4">
+                <label class="form-label" for="placa">Placa</label>
+                <input class="form-control" type="text" name="placa" id="placa" value="<?php echo e($valores['placa']); ?>">
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label" for="nacimiento">Mes de nacimiento</label>
+                <input class="form-control" type="text" name="nacimiento" id="nacimiento" value="<?php echo e($valores['nacimiento']); ?>">
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label" for="frente">Frente</label>
+                <input class="form-control" type="text" name="frente" id="frente" value="<?php echo e($valores['frente']); ?>">
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label" for="familiasId">Criadero</label>
+                <select class="form-select" name="familiasId" id="familiasId" required>
+                    <option value="">Seleccione</option>
+                    <?php foreach ($familias as $familia): ?>
+                        <option value="<?php echo e((string) $familia['codigo']); ?>" <?php echo $valores['familiasId'] === (string) $familia['codigo'] ? 'selected' : ''; ?>>
+                            <?php echo e($familia['nombre']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label" for="representanteId">Representante</label>
+                <select class="form-select" name="representanteId" id="representanteId" required>
+                    <option value="">Seleccione</option>
+                    <?php foreach ($representantes as $representante): ?>
+                        <option value="<?php echo e((string) $representante['ID']); ?>" <?php echo $valores['representanteId'] === (string) $representante['ID'] ? 'selected' : ''; ?>>
+                            <?php echo e($representante['nombreCompleto']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-success" type="submit">Actualizar</button>
+                <a class="btn btn-outline-secondary" href="index.php">Cancelar</a>
+            </div>
+        </form>
+    </div>
 </div>
 
-<div class="card-body">
-
-  <form action="" enctype="multipart/form-data" method="post">
-
-    <div class="mb-3">
-      <label for="txtID" class="form-label">ID:</label>
-      <input readonly value="<?php echo $txtID; ?>" type="text" class="form-control" name="txtID" id="txtID" aria-describedby="helpId" placeholder="ID">
-    </div>
-
-    <div class="mb-3">
-      <label for="anillo" class="form-label">Anillo</label>
-      <input value="<?php echo $anillo; ?>" type="text" class="form-control" name="anillo" id="anillo" aria-describedby="helpId" placeholder="">
-    </div>
-
-    <div class="mb-3">
-      <label for="pesoReal" class="form-label">Peso</label>
-      <input value="<?php echo $pesoR; ?>" type="number" step="any" class="form-control" name="pesoReal" id="pesoReal" aria-describedby="helpId" placeholder="">
-    </div>
-
-    <div class="mb-3">
-      <label for="alturaReal" class="form-label">Tamaño</label>
-      <input value="<?php echo $alturaR; ?>" type="number" step="any" class="form-control" name="alturaReal" id="alturaReal" aria-describedby="helpId" placeholder="">
-    </div>
-
-    <div class="mb-3">
-      <label for="placa" class="form-label">Placa</label>
-      <input value="<?php echo $placa; ?>" type="text" class="form-control" name="placa" id="placa" aria-describedby="helpId" placeholder="">
-    </div>
-
-    <div class="mb-3">
-      <label for="nacimiento" class="form-label">Mes de Nacimiento</label>
-      <input value="<?php echo $nacimiento; ?>" type="text" class="form-control" name="nacimiento" id="nacimiento" aria-describedby="helpId" placeholder="">
-    </div>
-
-    <div class="mb-3">
-      <label for="frente" class="form-label">Frente</label>
-      <input value="<?php echo $frente; ?>" type="text" class="form-control" name="frente" id="frente" aria-describedby="helpId" placeholder="">
-    </div>
-
-    <div class="mb-3">
-      <label for="familiasId" class="form-label">Familia-Organización-Club-Cuerda: </label>
-      <select name="familiasId" id="familiasId" class="form-select">
-        <option value="">Seleccione la Cuerda</option>
-        <?php foreach ($familias as $datofam) :
-          $selectedFam = ($datofam['codigo'] == $familia) ? 'selected' : '';
-          echo '<option value="' . $datofam["codigo"] . '" ' . $selectedFam . '>' . $datofam["nombre"] . '</option>';
-        endforeach;
-        ?>
-      </select>
-    </div>
-
-    <div class="mb-3">
-      <label for="representanteId" class="form-label">Representante: </label>
-      <select name="representanteId" id="representanteId" class="form-select">
-        <option value="">Seleccione el Representante</option>
-        <?php foreach ($representantes as $datorep) :
-          $selectedRep = ($datorep['ID'] == $representante) ? 'selected' : '';
-          echo '<option value="' . $datorep["ID"] . '" ' . $selectedRep . '>' . $datorep["nombreCompleto"] . '</option>';
-        endforeach;
-        ?>
-      </select>
-    </div>
-
-    <button type="submit" class="btn btn-success">Actualizar</button>
-    <a name="" id="" class="btn btn-primary" href="index.php" role="button">Cancelar</a>
-
-  </form>
-
-  <?php include("../../templates/footer.php"); ?>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>

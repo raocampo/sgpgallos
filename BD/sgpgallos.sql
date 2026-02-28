@@ -414,8 +414,8 @@ CREATE TABLE `usuarios` (
 --
 
 INSERT INTO `usuarios` (`ID`, `nombre`, `correo`, `apodo`, `clave`, `empresa`) VALUES
-(3, 'Robert Ocampo Ocampo', 'raocampo@gamil.com', 'raocampo', '9654', 'CorpSimtelec '),
-(5, 'Administrador', 'administrador@gamil.com', 'admin', 'admin', 'ASOGAL');
+(3, 'Robert Ocampo Ocampo', 'raocampo@gamil.com', 'raocampo', '$2y$10$epr7k8CDDWbfdUZ5PGZC9uF2pSDV1GiTv08Pg4vrRKMiIkwUD21dm', 'CorpSimtelec '),
+(5, 'Administrador', 'administrador@gamil.com', 'admin', '$2y$10$CTUanlK2izvt6gZ3rzOxLu3S/mSUzGtxa3I/co5D1WVM9HdwPV5mO', 'ASOGAL');
 
 --
 -- Índices para tablas volcadas

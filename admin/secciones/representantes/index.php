@@ -1,68 +1,61 @@
-<?php 
+<?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if(isset($_GET['txtID'])){
-    //borra el registro llamado con el ID correspondiente
-    //echo $_GET['txtID'];
-    
-    $txtID=(isset($_GET['txtID']))?$_GET['txtID']:"";
+require_auth();
 
-    $sentencia=$conexion->prepare("DELETE FROM representante WHERE ID=:id");
-    $sentencia->bindParam(":id",$txtID);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_representante'])) {
+    require_csrf();
+
+    $id = (int) $_POST['eliminar_representante'];
+    $sentencia = $conexion->prepare('DELETE FROM representante WHERE ID = :id');
+    $sentencia->bindValue(':id', $id, PDO::PARAM_INT);
     $sentencia->execute();
+
+    set_flash('success', 'Representante eliminado correctamente.');
+    redirect_to('secciones/representantes/');
 }
 
-//Con esta sentencias seleccionamos los datos de la tabla de representantes
-$sentencia=$conexion->prepare("SELECT * FROM `representante` ORDER BY nombreCompleto ASC ");
-$sentencia->execute();
+$sentencia = $conexion->query('SELECT ID, nombreCompleto, localidad FROM representante ORDER BY nombreCompleto ASC');
+$lista_rep = $sentencia->fetchAll();
 
-$lista_rep=$sentencia->fetchAll(PDO::FETCH_ASSOC);
+include __DIR__ . '/../../templates/header.php';
+?>
 
-
-include ("../../templates/header.php");?>
-
-<div class="card">
-    <div class="card-header">
-       <a name="" id="" class="btn btn-primary" href="crear.php" role="button"><i class="fa-solid fa-plus"></i> Agregar</a>
+<div class="card shadow-sm border-0">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Representantes</span>
+        <a class="btn btn-primary btn-sm" href="crear.php"><i class="fa-solid fa-plus"></i> Agregar</a>
     </div>
     <div class="card-body">
-        <div class="table-responsive-sm">
-            <table class="table ">
-                <thead class="table-primary">
+        <div class="table-responsive">
+            <table class="table align-middle" id="tabla_id">
+                <thead class="table-light">
                     <tr>
-                        <th scope="col">ID</th>
-                        <th scope="col">Nombres y Apellidos</th>
-                        <!--<th scope="col">Fecha Nacimiento</th>
-                        <th scope="col">Lugar</th>
-                        <th scope="col">correo</th>-->
-                        <th scope="col">Acciones</th>
+                        <th>ID</th>
+                        <th>Nombre completo</th>
+                        <th>Localidad</th>
+                        <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach($lista_rep as $registro){?>
-                    <tr class="">
-                        <td><?php echo $registro['ID'];?></td>
-                        <td><?php echo $registro['nombreCompleto'];?></td>
-                        <!--<td><?php //echo $registro['localidad'];?></td>
-                        <td><?php //echo $registro['fechaNac'];?></td>
-                        <td><?php //echo $registro['correo'];?></td>-->
-                        <td>
-                            <a name="" id="" class="btn btn-info" href="editar.php?txtID=<?php
-                            echo $registro['ID'];?>" role="button">Editar</a>
-                            <a name="" id="" class="btn btn-danger" href="index.php?txtID=<?php
-                            echo $registro['ID'];?>" role="button">Eliminar</a>
-                        </td>
-                    </tr>
-                    <?php } ?>
+                    <?php foreach ($lista_rep as $registro): ?>
+                        <tr>
+                            <td><?php echo e((string) $registro['ID']); ?></td>
+                            <td><?php echo e($registro['nombreCompleto']); ?></td>
+                            <td><?php echo e($registro['localidad']); ?></td>
+                            <td class="d-flex gap-2">
+                                <a class="btn btn-outline-primary btn-sm" href="editar.php?txtID=<?php echo urlencode((string) $registro['ID']); ?>">Editar</a>
+                                <?php echo render_delete_button('eliminar_representante', (int) $registro['ID']); ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
-        
     </div>
 </div>
 
-
-<?php include ("../../templates/footer.php");
- ?>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>
 

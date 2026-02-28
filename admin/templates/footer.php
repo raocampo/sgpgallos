@@ -1,38 +1,40 @@
 </main>
-  <footer>
-    <!-- place footer here -->
-  </footer>
-  <!-- Bootstrap JavaScript Libraries 
-  
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"
-    integrity="sha384-oBqDVmMz9ATKxIep9tiCxS/Z9fNfEXiDAYTujMAeBAsjFuCZSmKbSSUnQlmh/jp3" crossorigin="anonymous">
-  </script>
+<script src="<?php echo e(asset_url('js/bootstrap.bundle.min.js')); ?>"></script>
+<script src="<?php echo e(asset_url('js/scriptcheck.js')); ?>"></script>
+<script src="<?php echo e(asset_url('js/scriptcheckAltura.js')); ?>"></script>
+<script>
+  jQuery(function ($) {
+    if ($.fn.DataTable) {
+      var tables = $('[data-datatable="true"]');
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.1/dist/js/bootstrap.min.js"
-    integrity="sha384-7VPbUDkoPSGFnVtYi0QogXtr74QeVeeIs99Qfg5YCF+TidwNdjvaKZX19NZ/e6oz" crossorigin="anonymous">
-  </script>-->
-  <script src="../../js/scriptcheck.js"></script>
-  <script src="../../js/scriptcheckAltura.js"></script>
-  <script src="../../js/bootstrap.bundle.min.js"></script>
-  <script src="../../js/bootstrap.min.js"></script>
-  <!--<script src="../../js/cotejaManual.js"></script>-->
-  <script>
-    jQuery.noConflict();
-    jQuery(document).ready( function(){
-      jQuery("#tabla_id").DataTable({
-        "pageLength":25,
-        lengthMenu:[
-          [50,75,100],
-          [50,75,100]
-        ],
-        "language":{
-          "url": "../idiomas/espaniol.json"
+      if (!tables.length && $('#tabla_id').length) {
+        tables = $('#tabla_id');
+      }
+
+      tables.each(function () {
+        if ($.fn.dataTable.isDataTable(this)) {
+          return;
         }
+
+        $(this).DataTable({
+          pageLength: 25,
+          lengthMenu: [
+            [25, 50, 75, 100],
+            [25, 50, 75, 100]
+          ],
+          language: {
+            url: '<?php echo e(admin_url('templates/idiomas/espaniol.json')); ?>'
+          }
+        });
       });
+    }
 
+    $(document).on('click', '[data-confirm]', function (event) {
+      if (!window.confirm($(this).data('confirm'))) {
+        event.preventDefault();
+      }
     });
-  </script>
-  
+  });
+</script>
 </body>
-
 </html>

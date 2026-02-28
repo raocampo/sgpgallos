@@ -1,107 +1,117 @@
-<?php 
-error_reporting(E_ERROR | E_WARNING | E_PARSE);
+<?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
-}
-$item = 0;
-$nombreTorneo = $_SESSION['nombreTorneo'];
-$torneoId = $_SESSION['torneoId'];
+require_auth();
+start_secure_session();
+$context = require_tournament_context('Seleccione un torneo antes de gestionar gallos.');
+$torneoId = $context['torneoId'];
+$nombreTorneo = $context['nombreTorneo'];
 
-if(isset($_GET['txtID'])){
-    //borra el registro llamado con el ID correspondiente
-    //echo $_GET['txtID'];
-    
-    $txtID=(isset($_GET['txtID']))?$_GET['txtID']:"";
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_gallo'])) {
+    require_csrf();
 
-    /*$sentencia=$conexion->prepare("SELECT imagen FROM gallos WHERE ID=:id");
-    $sentencia->bindParam(":id",$txtID);
+    $id = (int) $_POST['eliminar_gallo'];
+    $sentencia = $conexion->prepare('DELETE FROM gallos WHERE ID = :id AND torneoId = :torneoId');
+    $sentencia->bindValue(':id', $id, PDO::PARAM_INT);
+    $sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
     $sentencia->execute();
-    $registro_imagen=$sentencia->fetch(PDO::FETCH_LAZY);
 
-    if(isset($registro_imagen["imagen"])){
-
-        if(file_exists("../../../assets/img/gallos/".$registro_imagen["imagen"])){
-            
-            unlink("../../../assets/img/gallos/".$registro_imagen["imagen"]);
-        
-        }
-    }*/
-
-    $sentencia=$conexion->prepare("DELETE FROM gallos WHERE ID=:id");
-    $sentencia->bindParam(":id",$txtID);
-    $sentencia->execute();
+    set_flash('success', 'Gallo eliminado correctamente.');
+    redirect_to('secciones/gallos/?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
 }
 
-//Con esta sentencia seleccionamos los datos de la tabla gallos,  nombre de familias y el nombre del representante correspondiente
-
-$sentencia=$conexion->prepare("SELECT gallos.ID, gallos.anillo, gallos.pesoReal, gallos.tamañoReal, gallos.placa, gallos.nacimiento, gallos.frente, familias.nombre AS nombre_familia, representante.nombreCompleto AS nombre_representante 
-FROM gallos 
-INNER JOIN familias ON gallos.familiasId = familias.codigo 
-INNER JOIN representante ON gallos.representanteId = representante.ID
-WHERE gallos.torneoId = $torneoId");
+$sentencia = $conexion->prepare('
+    SELECT gallos.ID, gallos.anillo, gallos.pesoReal, gallos.tamañoReal, gallos.placa, gallos.nacimiento, gallos.frente,
+           familias.nombre AS nombre_familia, representante.nombreCompleto AS nombre_representante
+    FROM gallos
+    INNER JOIN familias ON gallos.familiasId = familias.codigo
+    INNER JOIN representante ON gallos.representanteId = representante.ID
+    WHERE gallos.torneoId = :torneoId
+    ORDER BY gallos.pesoReal ASC, gallos.tamañoReal ASC, gallos.anillo ASC
+');
+$sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
 $sentencia->execute();
+$lista_gallos = $sentencia->fetchAll();
 
-$lista_gallos=$sentencia->fetchAll(PDO::FETCH_ASSOC);
+$criaderos = array_unique(array_column($lista_gallos, 'nombre_familia'));
+$representantes = array_unique(array_column($lista_gallos, 'nombre_representante'));
 
-
-include ("../../templates/header.sub.php");
-
-
+include __DIR__ . '/../../templates/header.sub.php';
 ?>
 
-<div class="card">
-    
-    <div class="card-header">
-        <a name="" id="" class="btn btn-primary" href="crear.php" role="button"><i class="fa-solid fa-plus"></i> Agregar</a>
+<div class="page-intro">
+    <div>
+        <span class="app-kicker">Registro deportivo</span>
+        <h2 class="page-title mb-2">Gallos del torneo</h2>
+        <p>Administre el padrón del torneo, revise pesos y mantenga consistente la base para el cotejamiento.</p>
     </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table" id="tabla_id">
-                <thead class="table-primary">
-                    <tr>
-                        <th scope="col">ID</th>
-                        <th scope="col">Anillo</th>
-                        <th scope="col">Peso</th>
-                        <th scope="col">Tamaño</th>
-                        <th scope="col">Placa</th>
-                        <th scope="col">Mes Nacimiento</th>
-                        <th scope="col">frente</th>
-                        <th scope="col">Criadero</th>
-                        <th scope="col">Representante</th>
-                        <th scope="col">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach($lista_gallos as $registro){ ?>
-                    <tr class="">
-                        <td><?php echo $item += 1; ?></td>
-                        <!--<td><?php //echo $registro['ID'];?></td>-->
-                        <td><?php echo $registro['anillo'];?></td>
-                        <td><?php echo $registro['pesoReal'];?></td>
-                        <td><?php echo $registro['tamañoReal'];?></td>
-                        <td><?php echo $registro['placa'];?></td>
-                        <td><?php echo $registro['nacimiento'];?></td>
-                        <td><?php echo $registro['frente'];?></td>
-                        <td><?php echo $registro['nombre_familia'];?></td>
-                        <td><?php echo $registro['nombre_representante'];?></td>
-                        <td>
-                            <a name="" id="" class="btn btn-info" href="editar.php?txtID=<?php
-                            echo $registro['ID'];?>" role="button">Editar</a>
-                            <a name="" id="" class="btn btn-danger" href="index.php?txtID=<?php
-                            echo $registro['ID'];?>" role="button">Eliminar</a>
-                        </td>
-                    </tr>
-                    <?php } ?>
-                </tbody>
-            </table>
-        </div>
-        
+    <a class="btn btn-primary btn-sm" href="crear.php"><i class="fa-solid fa-plus"></i> Agregar gallo</a>
+</div>
+
+<div class="stats-grid mb-4">
+    <div class="card stat-card">
+        <div class="stat-label">Gallos</div>
+        <div class="stat-value"><?php echo e((string) count($lista_gallos)); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Criaderos</div>
+        <div class="stat-value"><?php echo e((string) count($criaderos)); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Representantes</div>
+        <div class="stat-value"><?php echo e((string) count($representantes)); ?></div>
     </div>
 </div>
 
+<div class="card shadow-sm border-0">
+    <div class="card-header panel-toolbar">
+        <div>
+            <div class="panel-title">Listado general</div>
+            <div class="panel-note">Ordenado por peso, altura y anillo para facilitar la revision previa al cotejamiento.</div>
+        </div>
+        <a class="btn btn-primary btn-sm" href="crear.php"><i class="fa-solid fa-plus"></i> Agregar</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table align-middle" data-datatable="true">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Anillo</th>
+                        <th>Peso</th>
+                        <th>Tamano</th>
+                        <th>Placa</th>
+                        <th>Mes nacimiento</th>
+                        <th>Frente</th>
+                        <th>Criadero</th>
+                        <th>Representante</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($lista_gallos as $index => $registro): ?>
+                        <tr>
+                            <td><?php echo e((string) ($index + 1)); ?></td>
+                            <td><?php echo e($registro['anillo']); ?></td>
+                            <td><?php echo e((string) $registro['pesoReal']); ?></td>
+                            <td><?php echo e((string) $registro['tamañoReal']); ?></td>
+                            <td><?php echo e($registro['placa']); ?></td>
+                            <td><?php echo e($registro['nacimiento']); ?></td>
+                            <td><?php echo e($registro['frente']); ?></td>
+                            <td><?php echo e($registro['nombre_familia']); ?></td>
+                            <td><?php echo e($registro['nombre_representante']); ?></td>
+                            <td class="d-flex gap-2">
+                                <a class="btn btn-outline-primary btn-sm" href="editar.php?txtID=<?php echo urlencode((string) $registro['ID']); ?>">Editar</a>
+                                <?php echo render_delete_button('eliminar_gallo', (int) $registro['ID']); ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
-<?php include ("../../templates/footer.php");?>
-
+<?php include __DIR__ . '/../../templates/footer.php'; ?>

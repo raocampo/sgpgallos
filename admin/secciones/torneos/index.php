@@ -1,74 +1,99 @@
-<?php 
+<?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if(isset($_GET['txtID'])){
-    //borra el registro llamado con el ID correspondiente
-    //echo $_GET['txtID'];
-    
-    $txtID=(isset($_GET['txtID']))?$_GET['txtID']:"";
+require_auth();
 
-    $sentencia=$conexion->prepare("DELETE FROM torneos WHERE ID=:id");
-    $sentencia->bindParam(":id",$txtID);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_torneo'])) {
+    require_csrf();
+
+    $id = (int) $_POST['eliminar_torneo'];
+    $sentencia = $conexion->prepare('DELETE FROM torneos WHERE ID = :id');
+    $sentencia->bindValue(':id', $id, PDO::PARAM_INT);
     $sentencia->execute();
+
+    if (isset($_SESSION['torneoId']) && (int) $_SESSION['torneoId'] === $id) {
+        unset($_SESSION['torneoId'], $_SESSION['nombreTorneo']);
+    }
+
+    set_flash('success', 'Torneo eliminado correctamente.');
+    redirect_to('secciones/torneos/');
 }
 
-//Con esta sentencias seleccionamos los datos de la tabla de torneos
-$sentencia=$conexion->prepare("SELECT * FROM `torneos`");
-$sentencia->execute();
+$sentencia = $conexion->query('SELECT ID, nombre, fecha_inicio, fecha_fin, tipoTorneo FROM torneos ORDER BY fecha_inicio DESC, ID DESC');
+$lista_torn = $sentencia->fetchAll();
 
-$lista_torn=$sentencia->fetchAll(PDO::FETCH_ASSOC);
+$tiposTorneo = array_unique(array_column($lista_torn, 'tipoTorneo'));
+$torneoActivo = $_SESSION['nombreTorneo'] ?? '';
 
-
-include ("../../templates/header.php");
+include __DIR__ . '/../../templates/header.php';
 ?>
 
-
-<div class="card">
-    <div class="card-header">
-        <a name="" id="" class="btn btn-primary" href="crear.php" role="button"><i class="fa-solid fa-plus"></i> Agregar</a>
+<div class="page-intro">
+    <div>
+        <span class="app-kicker">Configuracion base</span>
+        <h2 class="page-title mb-2">Torneos</h2>
+        <p>Abra, edite y mantenga los torneos listos para cargar gallos, aplicar exclusiones y gestionar la competencia completa.</p>
     </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table">
-                <thead class="table-primary">
-                    <tr>
-                        <th scope="col">ID</th>
-                        <th scope="col">Nombre</th>
-                        <th scope="col">Fecha Inicio</th>
-                        <th scope="col">Fecha Termina</th>
-                        <th scope="col">Tipo Torneo</th>
-                        <th scope="col">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody class="">
-                    <?php foreach($lista_torn as $registro){?>
-                    <tr class="">
-                        <td><?php echo $registro['ID'];?></td>
-                        <td><?php echo $registro['nombre'];?></td>
-                        <td><?php echo $registro['fecha_inicio'];?></td>
-                        <td><?php echo $registro['fecha_fin'];?></td>
-                        <td><?php echo $registro['tipoTorneo'];?></td>
-                        <td>
-                            <a name="" id="" class="btn btn-info" href="editar.php?txtID=<?php
-                            echo $registro['ID'];?>" role="button">Editar</a>
+    <a class="btn btn-primary btn-sm" href="crear.php"><i class="fa-solid fa-plus"></i> Agregar torneo</a>
+</div>
 
-                            <a name="" id="" class="btn btn-info" href="../../templates/header.sub.php?nombreTorneo=<?php echo $registro['nombre'];?>&torneoId=<?php
-                            echo $registro['ID'];?>" role="button">Seleccionar</a>
-                            
-                            <a name="" id="" class="btn btn-danger" href="index.php?txtID=<?php
-                            echo $registro['ID'];?>" role="button">Eliminar</a>
-                        </td>
-                    </tr>
-                    <?php } ?>
-                </tbody>
-            </table>
-        </div>
-        
+<div class="stats-grid mb-4">
+    <div class="card stat-card">
+        <div class="stat-label">Total torneos</div>
+        <div class="stat-value"><?php echo e((string) count($lista_torn)); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Tipos</div>
+        <div class="stat-value"><?php echo e((string) count($tiposTorneo)); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Torneo activo</div>
+        <div class="stat-value stat-value-sm"><?php echo e($torneoActivo !== '' ? $torneoActivo : 'Ninguno'); ?></div>
     </div>
 </div>
 
+<div class="card shadow-sm border-0">
+    <div class="card-header panel-toolbar">
+        <div>
+            <div class="panel-title">Listado de torneos</div>
+            <div class="panel-note">Abra un torneo para continuar con la carga de datos y el flujo competitivo.</div>
+        </div>
+        <a class="btn btn-primary btn-sm" href="crear.php"><i class="fa-solid fa-plus"></i> Agregar</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table align-middle" data-datatable="true">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Fecha inicio</th>
+                        <th>Fecha fin</th>
+                        <th>Tipo</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($lista_torn as $registro): ?>
+                        <tr>
+                            <td><?php echo e((string) $registro['ID']); ?></td>
+                            <td><?php echo e($registro['nombre']); ?></td>
+                            <td><?php echo e($registro['fecha_inicio']); ?></td>
+                            <td><?php echo e($registro['fecha_fin']); ?></td>
+                            <td><?php echo e($registro['tipoTorneo']); ?></td>
+                            <td class="d-flex gap-2 flex-wrap">
+                                <a class="btn btn-outline-primary btn-sm" href="editar.php?txtID=<?php echo urlencode((string) $registro['ID']); ?>">Editar</a>
+                                <a class="btn btn-outline-success btn-sm" href="<?php echo e(admin_url('secciones/gallos/')); ?>?nombreTorneo=<?php echo urlencode($registro['nombre']); ?>&torneoId=<?php echo urlencode((string) $registro['ID']); ?>">Abrir</a>
+                                <?php echo render_delete_button('eliminar_torneo', (int) $registro['ID']); ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
-<?php include ("../../templates/footer.php");?>
-
-
+<?php include __DIR__ . '/../../templates/footer.php'; ?>

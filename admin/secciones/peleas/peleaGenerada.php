@@ -1,169 +1,264 @@
 <?php
-error_reporting(E_ERROR | E_WARNING | E_PARSE);
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if (session_status() == PHP_SESSION_NONE) {
-    session_start();
-}
+require_auth();
+start_secure_session();
+$context = require_tournament_context('Seleccione un torneo antes de gestionar peleas.');
+$torneoId = $context['torneoId'];
+$nombreTorneo = $context['nombreTorneo'];
 
-$nombreTorneo = $_SESSION['nombreTorneo'];
-$torneoId = $_SESSION['torneoId'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['peleaGenerada'])) {
+    require_csrf();
 
-$item = 0;
-$parejas = [];
+    $peleasSeleccionadas = $_POST['peleas'] ?? [];
 
-// Verificar si se ha enviado el formulario
-if (isset($_POST['peleaGenerada'])) {
-
-    // Verificar si se seleccionaron peleas
-    if (!empty($_POST['peleas'])) {
-
-        // Se han seleccionado peleas, procesar los datos.
-        $peleasSeleccionadas = $_POST['peleas'];
+    if (empty($peleasSeleccionadas)) {
+        set_flash('warning', 'No se seleccionaron cotejas para pactar.');
+    } else {
+        $insertadas = 0;
+        $omitidasDuplicadas = 0;
+        $omitidasDisponibilidad = 0;
 
         foreach ($peleasSeleccionadas as $pelea) {
-            // Verificar si es un checkbox de ID_Coteja o de gallo1-gallo2
-            if (strpos($pelea, '-') !== false) {
-                // Es un checkbox de gallo1-gallo2
-                $idsGallos = explode('-', $pelea);
-                $galloL = $idsGallos[0];
-                $galloV = $idsGallos[1];
-            } else {
-                // Es un checkbox de ID_Coteja
-                $idCoteja = $pelea;
+            $galloL = null;
+            $galloV = null;
 
-                // Obtener los IDs de los gallos correspondientes al ID_Coteja
-                $sentenciaCoteja = $conexion->prepare("SELECT galloL, galloV FROM coteja WHERE ID_Coteja = :idCoteja");
-                $sentenciaCoteja->bindParam(":idCoteja", $idCoteja);
+            if (strpos($pelea, '-') !== false) {
+                [$galloL, $galloV] = array_map('intval', explode('-', $pelea, 2));
+            } else {
+                $idCoteja = (int) $pelea;
+                $sentenciaCoteja = $conexion->prepare('SELECT galloL, galloV FROM coteja WHERE ID_Coteja = :id AND torneoId = :torneoId');
+                $sentenciaCoteja->bindValue(':id', $idCoteja, PDO::PARAM_INT);
+                $sentenciaCoteja->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
                 $sentenciaCoteja->execute();
-                $coteja = $sentenciaCoteja->fetch(PDO::FETCH_ASSOC);
+                $coteja = $sentenciaCoteja->fetch();
 
                 if ($coteja) {
-                    $galloL = $coteja['galloL'];
-                    $galloV = $coteja['galloV'];
-                } else {
-                    // Manejar el caso de error o no se encontró el ID_Coteja
-                    continue; // Saltar al siguiente bucle
+                    $galloL = (int) $coteja['galloL'];
+                    $galloV = (int) $coteja['galloV'];
                 }
             }
 
-            // Verificar si la pelea ya existe en la base de datos
-            $sentenciaExistePelea = $conexion->prepare("SELECT COUNT(*) FROM peleas WHERE galloL = :galloL AND galloV = :galloV AND torneoId = :torneoId");
-            $sentenciaExistePelea->bindParam(":galloL", $galloL);
-            $sentenciaExistePelea->bindParam(":galloV", $galloV);
-            $sentenciaExistePelea->bindParam(":torneoId", $torneoId);
-            $sentenciaExistePelea->execute();
-            $cantidadPeleas = $sentenciaExistePelea->fetchColumn();
-
-            if ($cantidadPeleas == 0) {
-                // La pelea no existe en la base de datos, proceder a insertarla
-
-                // Realizar la inserción en la tabla "peleas"
-                $sentencia = $conexion->prepare("INSERT INTO peleas (galloL, galloV, torneoId) VALUES (:galloL, :galloV, :torneoId)");
-                $sentencia->bindParam(':galloL', $galloL);
-                $sentencia->bindParam(':galloV', $galloV);
-                $sentencia->bindParam(':torneoId', $torneoId);
-                $sentencia->execute();
+            if (!$galloL || !$galloV || $galloL === $galloV) {
+                continue;
             }
+
+            $verifica = $conexion->prepare('
+                SELECT COUNT(*)
+                FROM peleas
+                WHERE torneoId = :torneoId
+                  AND (
+                        (galloL = :galloL_a AND galloV = :galloV_a)
+                     OR (galloL = :galloV_b AND galloV = :galloL_b)
+                  )
+            ');
+            $verifica->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+            $verifica->bindValue(':galloL_a', (string) $galloL);
+            $verifica->bindValue(':galloV_a', (string) $galloV);
+            $verifica->bindValue(':galloV_b', (string) $galloV);
+            $verifica->bindValue(':galloL_b', (string) $galloL);
+            $verifica->execute();
+
+            if ((int) $verifica->fetchColumn() > 0) {
+                $omitidasDuplicadas++;
+                continue;
+            }
+
+            $verificaDisponibilidad = $conexion->prepare('
+                SELECT COUNT(*)
+                FROM peleas
+                WHERE torneoId = :torneoId
+                  AND estado <> :estadoAnulada
+                  AND (
+                        galloL = :galloL_a
+                     OR galloV = :galloL_b
+                     OR galloL = :galloV_a
+                     OR galloV = :galloV_b
+                  )
+            ');
+            $verificaDisponibilidad->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+            $verificaDisponibilidad->bindValue(':estadoAnulada', 'anulada');
+            $verificaDisponibilidad->bindValue(':galloL_a', (string) $galloL);
+            $verificaDisponibilidad->bindValue(':galloL_b', (string) $galloL);
+            $verificaDisponibilidad->bindValue(':galloV_a', (string) $galloV);
+            $verificaDisponibilidad->bindValue(':galloV_b', (string) $galloV);
+            $verificaDisponibilidad->execute();
+
+            if ((int) $verificaDisponibilidad->fetchColumn() > 0) {
+                $omitidasDisponibilidad++;
+                continue;
+            }
+
+            $inserta = $conexion->prepare('INSERT INTO peleas (galloL, galloV, torneoId, estado) VALUES (:galloL, :galloV, :torneoId, :estado)');
+            $inserta->bindValue(':galloL', (string) $galloL);
+            $inserta->bindValue(':galloV', (string) $galloV);
+            $inserta->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+            $inserta->bindValue(':estado', 'pendiente');
+            $inserta->execute();
+            $insertadas++;
         }
 
-        // Redireccionar o mostrar un mensaje de éxito, según lo necesites
-        // header('Location: peleas_guardadas.php');
-        // echo "Las peleas se han guardado exitosamente.";
+        if ($insertadas > 0) {
+            $mensaje = 'Peleas pactadas correctamente.';
+            if ($omitidasDuplicadas > 0 || $omitidasDisponibilidad > 0) {
+                $mensaje .= ' Omitidas: ' . $omitidasDuplicadas . ' repetidas y ' . $omitidasDisponibilidad . ' por gallos ya comprometidos.';
+            }
+            set_flash('success', $mensaje);
+        } else {
+            set_flash('warning', 'No se agregaron peleas nuevas. Revise duplicados o gallos ya comprometidos.');
+        }
+    }
+
+    redirect_to('secciones/peleas/peleaGenerada.php?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_pelea'])) {
+    require_csrf();
+
+    $id = (int) $_POST['eliminar_pelea'];
+    $sentencia = $conexion->prepare('DELETE FROM peleas WHERE ID_Pelea = :id AND torneoId = :torneoId');
+    $sentencia->bindValue(':id', $id, PDO::PARAM_INT);
+    $sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+    $sentencia->execute();
+
+    set_flash('success', 'Pelea liberada correctamente.');
+    redirect_to('secciones/peleas/peleaGenerada.php?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
+}
+
+$sentencia = $conexion->prepare('
+    SELECT p.ID_Pelea, p.galloL, p.galloV, p.estado, p.ganador, p.observaciones,
+           gl.anillo AS anilloL, gl.frente AS frenteL, gl.pesoReal AS pesoRealL, gl.tamañoReal AS tamañoRealL, fl.nombre AS nombre_familiaL,
+           gv.anillo AS anilloV, gv.frente AS frenteV, gv.pesoReal AS pesoRealV, gv.tamañoReal AS tamañoRealV, fv.nombre AS nombre_familiaV
+    FROM peleas p
+    INNER JOIN gallos gl ON p.galloL = gl.ID
+    INNER JOIN gallos gv ON p.galloV = gv.ID
+    INNER JOIN familias fl ON gl.familiasId = fl.codigo
+    INNER JOIN familias fv ON gv.familiasId = fv.codigo
+    WHERE p.torneoId = :torneoId
+    ORDER BY p.ID_Pelea ASC
+');
+$sentencia->bindValue(':torneoId', $torneoId, PDO::PARAM_INT);
+$sentencia->execute();
+$resultado = $sentencia->fetchAll();
+
+$pendientes = 0;
+$finalizadas = 0;
+$anuladas = 0;
+
+foreach ($resultado as $pelea) {
+    if ($pelea['estado'] === 'finalizada') {
+        $finalizadas++;
+    } elseif ($pelea['estado'] === 'anulada') {
+        $anuladas++;
     } else {
-        // No se han seleccionados peleas.
-        echo "No se han seleccionado peleas";
+        $pendientes++;
     }
 }
 
-if (isset($_GET['txtID'])) {
-
-    $txtID = (isset($_GET['txtID'])) ? $_GET['txtID'] : "";
-
-    $sentencia = $conexion->prepare("DELETE FROM peleas WHERE ID_Pelea=:id");
-    $sentencia->bindParam(":id", $txtID);
-    $sentencia->execute();
-}
-
-include("../../templates/header.sub.php");
+include __DIR__ . '/../../templates/header.sub.php';
 ?>
 
-<script>
-// Función para imprimir el contenido de la tabla
-function imprimirTabla() {
-    window.location.href = 'reportePelea.php';
-}
-</script>
-
-<div class="card container-fluid bg-transparent ">
-    <div class="card-header">
-        <h3>PELEAS PACTADAS <?php echo $nombreTorneo; ?> </h3>
+<div class="page-intro">
+    <div>
+        <span class="app-kicker">Ronda vigente</span>
+        <h2 class="page-title mb-2">Peleas pactadas</h2>
+        <p>Revise los cruces promovidos desde cotejas, libere peleas si hace falta y avance al registro oficial de resultados.</p>
     </div>
-    <section class="card">
-        <form class="contenido_tolerancia" id="formularioPeleas" action="" enctype="multipart/form-data" method="post">
-
-            <div class="card-body d-flex">
-                <table class=" table table-bordered table-responsive-md  table-sm flex-fill text-center" >
-                    <thead class="table-primary ">
-                        <tr>
-                            <th>Pelea #</th>
-                            <th>Anillo</th>
-                            <th>Criadero</th>
-                            <th>Frente</th>
-                            <th>Altura</th>
-                            <th>Peso</th>
-                            <th></th>
-                            <th>Anillo</th>
-                            <th>Criadero</th>
-                            <th>Frente</th>
-                            <th>Altura</th>
-                            <th>Peso</th>
-                            <th>Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        $sentencia = $conexion->prepare("SELECT p.ID_Pelea, p.galloL, p.galloV, gl.anillo AS anilloL, gl.frente AS frenteL, gl.pesoReal AS pesoRealL, gl.tamañoReal AS tamañoRealL, fl.nombre AS nombre_familiaL, gv.anillo AS anilloV, gv.frente AS frenteV, gv.pesoReal AS pesoRealV, gv.tamañoReal AS tamañoRealV, fv.nombre AS nombre_familiaV
-                                        FROM peleas p
-                                        INNER JOIN gallos gl ON p.galloL = gl.ID
-                                        INNER JOIN gallos gv ON p.galloV = gv.ID
-                                        INNER JOIN familias fl ON gl.familiasId = fl.codigo
-                                        INNER JOIN familias fv ON gv.familiasId = fv.codigo
-                                        WHERE p.torneoId = :torneoId ORDER BY RAND()");
-                        $sentencia->bindParam(":torneoId", $torneoId);
-                        $sentencia->execute();
-                        $resultado = $sentencia->fetchAll(PDO::FETCH_ASSOC);
-
-                        ?>
-                        <?php foreach ($resultado as $pelea) { ?>
-                            <tr>
-                                <td><?php echo $item += 1; ?></td>
-                                <td><?php echo $pelea['anilloL']; ?></td>
-                                <td><?php echo $pelea['nombre_familiaL']; ?></td>
-                                <td><?php echo $pelea['frenteL']; ?></td>
-                                <td><?php echo $pelea['tamañoRealL']; ?></td>
-                                <td><?php echo $pelea['pesoRealL']; ?></td>
-                                <td><span>VS</span></td>
-                                <td><?php echo $pelea['anilloV']; ?></td>
-                                <td><?php echo $pelea['nombre_familiaV']; ?></td>
-                                <td><?php echo $pelea['frenteV']; ?></td>
-                                <td><?php echo $pelea['tamañoRealV']; ?></td>
-                                <td><?php echo $pelea['pesoRealV']; ?></td>
-                                <td>
-                                  <a name="" id="" class="btn btn-success" href="peleaGenerada.php?txtID=<?php echo $pelea['ID_Pelea']; ?>" role="button">Liberar</a>
-                                </td>
-                            </tr>
-                        <?php } ?>
-                    </tbody>
-                </table>
-            </div>
-            <div class="d-flex flex-row ">
-                <a name="" id="" class="btn btn-success m-2" href="resultados.php" role="button">Resultados</a>
-                <button id="btnImprimir" type="button" class="btn btn-success m-2" onclick="imprimirTabla()">Imprimir</button>
-            </div>
-        </form>
-    </section>
+    <div class="badge-soft">Total: <?php echo e((string) count($resultado)); ?> peleas</div>
 </div>
 
-<?php include("../../templates/footer.php"); ?>
+<div class="stats-grid mb-4">
+    <div class="card stat-card">
+        <div class="stat-label">Total pactadas</div>
+        <div class="stat-value"><?php echo e((string) count($resultado)); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Pendientes</div>
+        <div class="stat-value"><?php echo e((string) $pendientes); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Finalizadas</div>
+        <div class="stat-value"><?php echo e((string) $finalizadas); ?></div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-label">Anuladas</div>
+        <div class="stat-value"><?php echo e((string) $anuladas); ?></div>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header panel-toolbar">
+        <div>
+            <div class="panel-title">Tablero de peleas</div>
+            <div class="panel-note">Solo se listan peleas del torneo activo.</div>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary btn-sm" href="resultados.php">Resultados</a>
+            <a class="btn btn-outline-secondary btn-sm" href="reportePelea.php" target="_blank">Imprimir</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <?php if (!empty($resultado)): ?>
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle" data-datatable="true">
+                <thead class="table-light">
+                    <tr>
+                        <th>Pelea</th>
+                        <th>Anillo L</th>
+                        <th>Criadero L</th>
+                        <th>Peso L</th>
+                        <th>Anillo V</th>
+                        <th>Criadero V</th>
+                        <th>Peso V</th>
+                        <th>Estado</th>
+                        <th>Ganador</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($resultado as $index => $pelea): ?>
+                        <tr>
+                            <td><?php echo e((string) ($index + 1)); ?></td>
+                            <td><?php echo e($pelea['anilloL']); ?></td>
+                            <td><?php echo e($pelea['nombre_familiaL']); ?></td>
+                            <td><?php echo e((string) $pelea['pesoRealL']); ?></td>
+                            <td><?php echo e($pelea['anilloV']); ?></td>
+                            <td><?php echo e($pelea['nombre_familiaV']); ?></td>
+                            <td><?php echo e((string) $pelea['pesoRealV']); ?></td>
+                            <td>
+                                <span class="badge-soft <?php echo $pelea['estado'] === 'finalizada' ? 'accent' : ''; ?>">
+                                    <?php echo e($pelea['estado']); ?>
+                                </span>
+                            </td>
+                            <td>
+                                <?php
+                                    $ganador = '';
+                                    if ((string) $pelea['ganador'] === (string) $pelea['galloL']) {
+                                        $ganador = $pelea['anilloL'] . ' - ' . $pelea['nombre_familiaL'];
+                                    } elseif ((string) $pelea['ganador'] === (string) $pelea['galloV']) {
+                                        $ganador = $pelea['anilloV'] . ' - ' . $pelea['nombre_familiaV'];
+                                    }
+                                    echo e($ganador);
+                                ?>
+                            </td>
+                            <td class="d-flex gap-2 flex-wrap">
+                                <a class="btn btn-outline-success btn-sm" href="resultados.php?txtID=<?php echo urlencode((string) $pelea['ID_Pelea']); ?>">Registrar resultado</a>
+                                <?php echo render_delete_button('eliminar_pelea', (int) $pelea['ID_Pelea'], 'Liberar', 'btn btn-danger btn-sm'); ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php else: ?>
+            <div class="empty-panel">
+                <h3>No hay peleas pactadas</h3>
+                <p>Seleccione cotejas desde el motor de cruces para empezar a registrar resultados del torneo.</p>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<?php include __DIR__ . '/../../templates/footer.php'; ?>

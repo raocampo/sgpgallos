@@ -1,71 +1,66 @@
 <?php
 
-include("../../bd.php");
+require_once __DIR__ . '/../../includes/app.php';
+require_once __DIR__ . '/../../bd.php';
 
-if ($_POST) {
+require_auth();
 
-  //Se realiza la recepción de los datos
-  $datos = (isset($_POST['datos'])) ? $_POST['datos'] : "";
-  //$localidad = (isset($_POST['localidad'])) ? $_POST['localidad'] : "";
-  //$nacimiento = (isset($_POST['fechaNac'])) ? $_POST['fechaNac'] : "";
-  //$correo = (isset($_POST['correo'])) ? $_POST['correo'] : "";
+$valores = [
+    'nombreCompleto' => '',
+    'localidad' => '',
+];
 
-  $sentencia = $conexion->prepare("INSERT INTO `representante` (`ID`, `nombreCompleto`) VALUES (NULL, :nombreCompleto)");
+$error = '';
 
-  $sentencia->bindParam(":nombreCompleto", $datos);
-  /*$sentencia->bindParam(":localidad", $localidad);
-  $sentencia->bindParam(":fechaNac", $nacimiento);
-  $sentencia->bindParam(":correo", $correo);*/
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
 
-  if ($sentencia->execute()) {
-    $mensaje = "Se creo el registro...!";
-    header("Location:index.php?mensaje= " . $mensaje);
-  } else {
-    echo "El Registro no se agrego";
-  }
+    $valores['nombreCompleto'] = post('nombreCompleto');
+    $valores['localidad'] = post('localidad');
+
+    if ($valores['nombreCompleto'] === '') {
+        $error = 'Ingrese el nombre del representante.';
+    } else {
+        $sentencia = $conexion->prepare('INSERT INTO representante (nombreCompleto, localidad) VALUES (:nombre, :localidad)');
+        $sentencia->bindValue(':nombre', $valores['nombreCompleto']);
+        $sentencia->bindValue(':localidad', $valores['localidad']);
+        $sentencia->execute();
+
+        set_flash('success', 'Representante creado correctamente.');
+        redirect_to('secciones/representantes/');
+    }
 }
-include("../../templates/header.php");
 
+include __DIR__ . '/../../templates/header.php';
 ?>
 
-<div class="card">
-  <div class="card-header">
-    Crear Representante
-  </div>
+<div class="card shadow-sm border-0">
+    <div class="card-header">Crear representante</div>
+    <div class="card-body">
+        <?php if ($error !== ''): ?>
+            <div class="alert alert-danger"><?php echo e($error); ?></div>
+        <?php endif; ?>
 
-  <div class="card-body">
+        <form method="post" class="row g-3">
+            <?php echo csrf_input(); ?>
 
-      <form action="" enctype="multipart/form-data" method="post">
-
-            <div class="mb-3">
-              <label for="datos" class="form-label">Nombres y Apellidos</label>
-              <input type="text" class="form-control" name="datos" id="datos" aria-describedby="helpId" placeholder="Nombres y Apellidos">
+            <div class="col-md-8">
+                <label class="form-label" for="nombreCompleto">Nombres y apellidos</label>
+                <input class="form-control" type="text" name="nombreCompleto" id="nombreCompleto" value="<?php echo e($valores['nombreCompleto']); ?>" required>
             </div>
 
-            <!--<div class="mb-3">
-              <label for="localidad" class="form-label">Lugar</label>
-              <input type="text" class="form-control" name="localidad" id="localidad" aria-describedby="helpId" placeholder="Lugar del Criadero">
-            </div>-->
-
-            <button type="submit" class="btn btn-success">Guardar</button>
-            <a name="" id="" class="btn btn-primary" href="index.php" role="button">Cancelar</a>
-
-            <!--<div class="mb-3">
-              <label for="fechaNac" class="form-label">Fecha de Nacimiento</label>
-              <input type="date" class="form-control" name="fechaNac" id="fechaNac" aria-describedby="helpId" placeholder="Fecha de Nacimiento">
+            <div class="col-md-4">
+                <label class="form-label" for="localidad">Localidad</label>
+                <input class="form-control" type="text" name="localidad" id="localidad" value="<?php echo e($valores['localidad']); ?>">
             </div>
 
-            <div class="mb-3">
-              <label for="correo" class="form-label">Correo Electronico</label>
-              <input type="text" class="form-control" name="correo" id="correo" aria-describedby="helpId" placeholder="correo">
-            </div>-->
-
-          </form>
-
-  </div>
-  <div class="card-footer text-muted">
-
-  </div>
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-success" type="submit">Guardar</button>
+                <a class="btn btn-outline-secondary" href="index.php">Cancelar</a>
+            </div>
+        </form>
+    </div>
 </div>
 
-<?php include("../../templates/footer.php"); ?>
+<?php include __DIR__ . '/../../templates/footer.php'; ?>
+
