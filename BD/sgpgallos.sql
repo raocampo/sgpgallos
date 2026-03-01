@@ -383,16 +383,18 @@ CREATE TABLE `torneos` (
   `nombre` varchar(255) NOT NULL,
   `fecha_inicio` date NOT NULL,
   `fecha_fin` date NOT NULL,
-  `tipoTorneo` varchar(255) NOT NULL
+  `tipoTorneo` varchar(255) NOT NULL,
+  `estado` varchar(20) NOT NULL DEFAULT 'abierto',
+  `fecha_cierre_real` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Volcado de datos para la tabla `torneos`
 --
 
-INSERT INTO `torneos` (`ID`, `nombre`, `fecha_inicio`, `fecha_fin`, `tipoTorneo`) VALUES
-(1, 'PRIMERA FECHA CAMPEONATO PROVINCIAL 2023', '2023-01-28', '0000-00-00', 'Provincial'),
-(2, 'TERCERA FECHA CAMPEONATO PROVINCIAL 2022', '2022-07-16', '0000-00-00', 'Provincial');
+INSERT INTO `torneos` (`ID`, `nombre`, `fecha_inicio`, `fecha_fin`, `tipoTorneo`, `estado`, `fecha_cierre_real`) VALUES
+(1, 'PRIMERA FECHA CAMPEONATO PROVINCIAL 2023', '2023-01-28', '0000-00-00', 'Provincial', 'abierto', NULL),
+(2, 'TERCERA FECHA CAMPEONATO PROVINCIAL 2022', '2022-07-16', '0000-00-00', 'Provincial', 'abierto', NULL);
 
 -- --------------------------------------------------------
 
@@ -490,6 +492,9 @@ ALTER TABLE `tipousuario`
 --
 ALTER TABLE `torneos`
   ADD PRIMARY KEY (`ID`);
+
+ALTER TABLE `torneos`
+  ADD KEY `idx_torneos_estado` (`estado`);
 
 --
 -- Indices de la tabla `usuarios`

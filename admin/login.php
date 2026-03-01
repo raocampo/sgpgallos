@@ -29,22 +29,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($usuario) {
             $claveGuardada = (string) ($usuario['clave'] ?? '');
-            $infoHash = password_get_info($claveGuardada);
-            $esHash = !empty($infoHash['algo']);
+            $autenticado = verify_stored_password($claveIngresada, $claveGuardada);
 
-            if ($esHash) {
-                $autenticado = password_verify($claveIngresada, $claveGuardada);
-            } else {
-                $autenticado = hash_equals($claveGuardada, $claveIngresada);
-
-                if ($autenticado) {
-                    $nuevoHash = password_hash($claveIngresada, PASSWORD_DEFAULT);
-                    $actualizaClave = $conexion->prepare('UPDATE usuarios SET clave = :clave WHERE ID = :id');
-                    $actualizaClave->bindValue(':clave', $nuevoHash);
-                    $actualizaClave->bindValue(':id', (int) $usuario['ID'], PDO::PARAM_INT);
-                    $actualizaClave->execute();
-                    $usuario['clave'] = $nuevoHash;
-                }
+            if ($autenticado && !stored_password_is_hash($claveGuardada)) {
+                $nuevoHash = hash_user_password($claveIngresada);
+                $actualizaClave = $conexion->prepare('UPDATE usuarios SET clave = :clave WHERE ID = :id');
+                $actualizaClave->bindValue(':clave', $nuevoHash);
+                $actualizaClave->bindValue(':id', (int) $usuario['ID'], PDO::PARAM_INT);
+                $actualizaClave->execute();
+                $usuario['clave'] = $nuevoHash;
             }
         }
 

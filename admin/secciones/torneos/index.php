@@ -21,11 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_torneo'])) {
     redirect_to('secciones/torneos/');
 }
 
-$sentencia = $conexion->query('SELECT ID, nombre, fecha_inicio, fecha_fin, tipoTorneo FROM torneos ORDER BY fecha_inicio DESC, ID DESC');
+$sentencia = $conexion->query('SELECT * FROM torneos ORDER BY fecha_inicio DESC, ID DESC');
 $lista_torn = $sentencia->fetchAll();
 
 $tiposTorneo = array_unique(array_column($lista_torn, 'tipoTorneo'));
 $torneoActivo = $_SESSION['nombreTorneo'] ?? '';
+$torneosCerrados = array_filter($lista_torn, static function (array $torneo): bool {
+    return tournament_state_label($torneo['estado'] ?? null) === 'cerrado';
+});
 
 include __DIR__ . '/../../templates/header.php';
 ?>
@@ -52,6 +55,10 @@ include __DIR__ . '/../../templates/header.php';
         <div class="stat-label">Torneo activo</div>
         <div class="stat-value stat-value-sm"><?php echo e($torneoActivo !== '' ? $torneoActivo : 'Ninguno'); ?></div>
     </div>
+    <div class="card stat-card">
+        <div class="stat-label">Cerrados</div>
+        <div class="stat-value"><?php echo e((string) count($torneosCerrados)); ?></div>
+    </div>
 </div>
 
 <div class="card shadow-sm border-0">
@@ -72,6 +79,7 @@ include __DIR__ . '/../../templates/header.php';
                         <th>Fecha inicio</th>
                         <th>Fecha fin</th>
                         <th>Tipo</th>
+                        <th>Estado</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -83,9 +91,14 @@ include __DIR__ . '/../../templates/header.php';
                             <td><?php echo e($registro['fecha_inicio']); ?></td>
                             <td><?php echo e($registro['fecha_fin']); ?></td>
                             <td><?php echo e($registro['tipoTorneo']); ?></td>
+                            <td>
+                                <span class="badge-soft <?php echo tournament_state_label($registro['estado'] ?? null) === 'cerrado' ? 'accent' : ''; ?>">
+                                    <?php echo e(tournament_state_label($registro['estado'] ?? null)); ?>
+                                </span>
+                            </td>
                             <td class="d-flex gap-2 flex-wrap">
                                 <a class="btn btn-outline-primary btn-sm" href="editar.php?txtID=<?php echo urlencode((string) $registro['ID']); ?>">Editar</a>
-                                <a class="btn btn-outline-success btn-sm" href="<?php echo e(admin_url('secciones/gallos/')); ?>?nombreTorneo=<?php echo urlencode($registro['nombre']); ?>&torneoId=<?php echo urlencode((string) $registro['ID']); ?>">Abrir</a>
+                                <a class="btn btn-outline-success btn-sm" href="<?php echo e(admin_url('secciones/torneos/dashboard.php')); ?>?nombreTorneo=<?php echo urlencode($registro['nombre']); ?>&torneoId=<?php echo urlencode((string) $registro['ID']); ?>">Abrir</a>
                                 <?php echo render_delete_button('eliminar_torneo', (int) $registro['ID']); ?>
                             </td>
                         </tr>

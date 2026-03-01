@@ -13,6 +13,8 @@ $valores = [
 ];
 
 $error = '';
+$clave = '';
+$claveConfirmacion = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
@@ -22,11 +24,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $valores['usuario'] = post('usuario');
     $valores['dependencia'] = post('dependencia');
     $clave = post('clave');
+    $claveConfirmacion = post('clave_confirmacion');
 
     if (in_array('', [$valores['nombre'], $valores['correo'], $valores['usuario'], $clave], true)) {
         $error = 'Complete los campos obligatorios.';
     } elseif (!filter_var($valores['correo'], FILTER_VALIDATE_EMAIL)) {
         $error = 'Ingrese un correo valido.';
+    } elseif (strlen($clave) < 8) {
+        $error = 'La contrasena debe tener al menos 8 caracteres.';
+    } elseif ($clave !== $claveConfirmacion) {
+        $error = 'La confirmacion de contrasena no coincide.';
     } else {
         $verifica = $conexion->prepare('SELECT COUNT(*) FROM usuarios WHERE apodo = :usuario');
         $verifica->bindValue(':usuario', $valores['usuario']);
@@ -39,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sentencia->bindValue(':nombre', $valores['nombre']);
             $sentencia->bindValue(':correo', $valores['correo']);
             $sentencia->bindValue(':usuario', $valores['usuario']);
-            $sentencia->bindValue(':clave', password_hash($clave, PASSWORD_DEFAULT));
+            $sentencia->bindValue(':clave', hash_user_password($clave));
             $sentencia->bindValue(':empresa', $valores['dependencia']);
             $sentencia->execute();
 
@@ -80,6 +87,11 @@ include __DIR__ . '/../../templates/header.php';
             <div class="col-md-6">
                 <label class="form-label" for="clave">Contrasena</label>
                 <input class="form-control" type="password" name="clave" id="clave" required>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label" for="clave_confirmacion">Confirmar contrasena</label>
+                <input class="form-control" type="password" name="clave_confirmacion" id="clave_confirmacion" required>
             </div>
 
             <div class="col-md-6">

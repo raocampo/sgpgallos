@@ -28,24 +28,58 @@ $rutaActual = $_SERVER['REQUEST_URI'] ?? '';
   <script src="<?php echo e(asset_url('DataTables/datatables.min.js')); ?>"></script>
 </head>
 <body class="app-shell">
-  <header class="app-topbar">
-    <div class="container-fluid py-3 d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-3">
-      <div class="app-brand d-flex align-items-center gap-3">
-        <img src="<?php echo e(asset_url('images/Logo.png')); ?>" alt="Logo" style="height: 68px; width: auto;">
-        <div>
-          <span class="app-kicker">Panel maestro</span>
-          <h1 class="app-title">Sistema de Competencia</h1>
-          <div class="app-subtitle">Usuario activo: <?php echo e($_SESSION['nombre'] ?? $_SESSION['apodo']); ?></div>
+  <div class="app-frame">
+    <aside class="app-sidebar" id="app-sidebar" aria-label="Navegacion principal">
+      <div class="app-sidebar__inner">
+        <div class="app-sidebar__brand">
+          <div class="app-brand d-flex align-items-center gap-3">
+            <img src="<?php echo e(asset_url('images/Logo.png')); ?>" alt="Logo" style="height: 68px; width: auto;">
+            <div>
+              <span class="app-kicker">Panel maestro</span>
+              <h1 class="app-title">Sistema de Competencia</h1>
+              <div class="app-subtitle">Usuario activo: <?php echo e($_SESSION['nombre'] ?? $_SESSION['apodo']); ?></div>
+            </div>
+          </div>
+          <button type="button" class="app-sidebar__close d-lg-none" data-sidebar-close aria-label="Cerrar menu">
+            <span class="app-icon-glyph" aria-hidden="true">&times;</span>
+          </button>
+        </div>
+
+        <div class="app-sidebar__section">
+          <div class="app-sidebar__section-label">Configuracion base</div>
+          <nav class="nav flex-column app-nav app-sidebar__nav">
+            <a class="nav-link <?php echo strpos($rutaActual, '/admin/index.php') !== false || rtrim($rutaActual, '/') === '/SG/admin' || rtrim($rutaActual, '/') === '/SG/admin/' ? 'active' : ''; ?>" href="<?php echo e(admin_url()); ?>">Inicio</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/torneos') !== false ? 'active' : ''; ?>" href="<?php echo e(admin_url('secciones/torneos/')); ?>">Torneos</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/representantes') !== false ? 'active' : ''; ?>" href="<?php echo e(admin_url('secciones/representantes/')); ?>">Representantes</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/familias') !== false ? 'active' : ''; ?>" href="<?php echo e(admin_url('secciones/familias/')); ?>">Criaderos</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/usuarios') !== false ? 'active' : ''; ?>" href="<?php echo e(admin_url('secciones/usuarios/')); ?>">Usuarios</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/usuarios/cuenta.php') !== false ? 'active' : ''; ?>" href="<?php echo e(admin_url('secciones/usuarios/cuenta.php')); ?>">Mi clave</a>
+            <a class="nav-link" href="<?php echo e(admin_url('cerrar.php')); ?>">Cerrar sesion</a>
+          </nav>
+        </div>
+
+        <div class="app-sidebar__footer">
+          <div class="app-sidebar__meta-label">Sesion activa</div>
+          <div class="app-sidebar__meta-value"><?php echo e($_SESSION['nombre'] ?? $_SESSION['apodo']); ?></div>
+          <div class="app-sidebar__meta-copy">Panel administrativo general del sistema.</div>
         </div>
       </div>
-      <nav class="nav nav-pills flex-wrap app-nav">
-        <a class="nav-link <?php echo strpos($rutaActual, '/secciones/torneos') !== false ? 'active' : ''; ?>" href="<?php echo e(admin_url('secciones/torneos/')); ?>">Torneos</a>
-        <a class="nav-link <?php echo strpos($rutaActual, '/secciones/representantes') !== false ? 'active' : ''; ?>" href="<?php echo e(admin_url('secciones/representantes/')); ?>">Representantes</a>
-        <a class="nav-link <?php echo strpos($rutaActual, '/secciones/familias') !== false ? 'active' : ''; ?>" href="<?php echo e(admin_url('secciones/familias/')); ?>">Criaderos</a>
-        <a class="nav-link <?php echo strpos($rutaActual, '/secciones/usuarios') !== false ? 'active' : ''; ?>" href="<?php echo e(admin_url('secciones/usuarios/')); ?>">Usuarios</a>
-        <a class="nav-link" href="<?php echo e(admin_url('cerrar.php')); ?>">Cerrar sesion</a>
-      </nav>
-    </div>
-  </header>
-  <main class="container-fluid app-main">
-    <?php render_flash(); ?>
+    </aside>
+
+    <div class="app-sidebar-backdrop" data-sidebar-close></div>
+
+    <div class="app-content-shell">
+      <header class="app-shellbar">
+        <div class="app-shellbar__group">
+          <button type="button" class="app-sidebar-toggle" data-sidebar-toggle aria-controls="app-sidebar" aria-expanded="false" aria-label="Mostrar u ocultar sidebar">
+            <span class="app-icon-glyph" aria-hidden="true">&#9776;</span>
+          </button>
+          <div class="app-shellbar__copy">
+            <div class="app-shellbar__eyebrow">Panel maestro</div>
+            <div class="app-shellbar__title">Sistema de Competencia</div>
+          </div>
+        </div>
+      </header>
+
+      <main class="container-fluid app-main">
+        <?php render_flash(); ?>

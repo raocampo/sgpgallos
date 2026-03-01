@@ -39,11 +39,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $valores['usuario'] = post('usuario');
     $valores['dependencia'] = post('dependencia');
     $clave = post('clave');
+    $claveConfirmacion = post('clave_confirmacion');
 
     if (in_array('', [$valores['nombre'], $valores['correo'], $valores['usuario']], true)) {
         $error = 'Complete los campos obligatorios.';
     } elseif (!filter_var($valores['correo'], FILTER_VALIDATE_EMAIL)) {
         $error = 'Ingrese un correo valido.';
+    } elseif ($clave !== '' && strlen($clave) < 8) {
+        $error = 'La nueva contrasena debe tener al menos 8 caracteres.';
+    } elseif ($clave !== '' && $clave !== $claveConfirmacion) {
+        $error = 'La confirmacion de la nueva contrasena no coincide.';
     } else {
         $verifica = $conexion->prepare('SELECT COUNT(*) FROM usuarios WHERE apodo = :usuario AND ID <> :id');
         $verifica->bindValue(':usuario', $valores['usuario']);
@@ -69,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $actualiza->bindValue(':id', $txtID, PDO::PARAM_INT);
 
             if ($clave !== '') {
-                $actualiza->bindValue(':clave', password_hash($clave, PASSWORD_DEFAULT));
+                $actualiza->bindValue(':clave', hash_user_password($clave));
             }
 
             $actualiza->execute();
@@ -116,6 +121,11 @@ include __DIR__ . '/../../templates/header.php';
             <div class="col-md-6">
                 <label class="form-label" for="clave">Nueva contrasena</label>
                 <input class="form-control" type="password" name="clave" id="clave" placeholder="Dejar vacio para conservar la actual">
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label" for="clave_confirmacion">Confirmar nueva contrasena</label>
+                <input class="form-control" type="password" name="clave_confirmacion" id="clave_confirmacion" placeholder="Repita la nueva contrasena">
             </div>
 
             <div class="col-md-6">

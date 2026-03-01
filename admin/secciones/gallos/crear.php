@@ -8,6 +8,7 @@ start_secure_session();
 $context = require_tournament_context('Seleccione un torneo antes de crear gallos.');
 $torneoId = $context['torneoId'];
 $nombreTorneo = $context['nombreTorneo'];
+$redirectGallos = 'secciones/gallos/?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId;
 
 $familias = $conexion->query('SELECT codigo, nombre FROM familias ORDER BY nombre ASC')->fetchAll();
 $representantes = $conexion->query('SELECT ID, nombreCompleto FROM representante ORDER BY nombreCompleto ASC')->fetchAll();
@@ -27,6 +28,7 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
+    ensure_open_tournament_or_redirect($conexion, $torneoId, $redirectGallos);
 
     foreach ($valores as $campo => $valor) {
         $valores[$campo] = post($campo);
@@ -60,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $sentencia->execute();
 
                 set_flash('success', 'Gallo creado correctamente.');
-                redirect_to('secciones/gallos/?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
+                redirect_to($redirectGallos);
             } catch (Throwable $errorDb) {
                 $error = 'No fue posible guardar el gallo. Verifique anillo y datos relacionados.';
             }

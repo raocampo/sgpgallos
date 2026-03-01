@@ -126,6 +126,13 @@ function login_user(array $usuario): void
     $_SESSION['logueado'] = true;
 }
 
+function current_user_id(): int
+{
+    start_secure_session();
+
+    return (int) ($_SESSION['user_id'] ?? 0);
+}
+
 function logout_user(): void
 {
     start_secure_session();
@@ -194,6 +201,114 @@ function require_csrf(): void
 function post(string $key, string $default = ''): string
 {
     return isset($_POST[$key]) ? trim((string) $_POST[$key]) : $default;
+}
+
+function stored_password_is_hash(string $storedPassword): bool
+{
+    $info = password_get_info($storedPassword);
+
+    return !empty($info['algo']);
+}
+
+function verify_stored_password(string $plainPassword, string $storedPassword): bool
+{
+    if ($storedPassword === '') {
+        return false;
+    }
+
+    if (stored_password_is_hash($storedPassword)) {
+        return password_verify($plainPassword, $storedPassword);
+    }
+
+    return hash_equals($storedPassword, $plainPassword);
+}
+
+function hash_user_password(string $plainPassword): string
+{
+    return password_hash($plainPassword, PASSWORD_DEFAULT);
+}
+
+function table_has_column(PDO $conexion, string $table, string $column): bool
+{
+    static $cache = [];
+
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
+    try {
+        $consulta = $conexion->prepare("SHOW COLUMNS FROM `{$table}` LIKE :column");
+        $consulta->bindValue(':column', $column);
+        $consulta->execute();
+        $cache[$key] = (bool) $consulta->fetch();
+    } catch (Throwable $error) {
+        $cache[$key] = false;
+    }
+
+    return $cache[$key];
+}
+
+function tournaments_support_state(PDO $conexion): bool
+{
+    return table_has_column($conexion, 'torneos', 'estado')
+        && table_has_column($conexion, 'torneos', 'fecha_cierre_real');
+}
+
+function fetch_tournament_record(PDO $conexion, int $torneoId): ?array
+{
+    if ($torneoId <= 0) {
+        return null;
+    }
+
+    $campos = [
+        'ID',
+        'nombre',
+        'fecha_inicio',
+        'fecha_fin',
+        'tipoTorneo',
+    ];
+
+    $campos[] = table_has_column($conexion, 'torneos', 'estado')
+        ? 'estado'
+        : "'abierto' AS estado";
+
+    $campos[] = table_has_column($conexion, 'torneos', 'fecha_cierre_real')
+        ? 'fecha_cierre_real'
+        : 'NULL AS fecha_cierre_real';
+
+    $consulta = $conexion->prepare('SELECT ' . implode(', ', $campos) . ' FROM torneos WHERE ID = :id LIMIT 1');
+    $consulta->bindValue(':id', $torneoId, PDO::PARAM_INT);
+    $consulta->execute();
+    $torneo = $consulta->fetch();
+
+    return $torneo ?: null;
+}
+
+function tournament_state_label(?string $state): string
+{
+    return $state === 'cerrado' ? 'cerrado' : 'abierto';
+}
+
+function tournament_is_closed(PDO $conexion, int $torneoId): bool
+{
+    $torneo = fetch_tournament_record($conexion, $torneoId);
+
+    return $torneo !== null && tournament_state_label($torneo['estado'] ?? null) === 'cerrado';
+}
+
+function ensure_open_tournament_or_redirect(
+    PDO $conexion,
+    int $torneoId,
+    string $redirectPath,
+    string $message = 'El torneo esta cerrado. Reabralo para volver a modificar su informacion.'
+): void {
+    if (!tournament_is_closed($conexion, $torneoId)) {
+        return;
+    }
+
+    set_flash('warning', $message);
+    redirect_to($redirectPath);
 }
 
 function get_int(string $key, int $default = 0): int

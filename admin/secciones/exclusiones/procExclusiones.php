@@ -8,9 +8,11 @@ start_secure_session();
 $context = require_tournament_context('Seleccione un torneo antes de continuar.');
 $torneoId = $context['torneoId'];
 $nombreTorneo = $context['nombreTorneo'];
+$redirectExclusiones = 'secciones/exclusiones/procExclusiones.php?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_exclusion'])) {
     require_csrf();
+    ensure_open_tournament_or_redirect($conexion, $torneoId, $redirectExclusiones);
 
     $id = (int) $_POST['eliminar_exclusion'];
     $elimina = $conexion->prepare('DELETE FROM exclusiones WHERE IdExclusion = :id AND torneoId = :torneoId');
@@ -19,11 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_exclusion'])
     $elimina->execute();
 
     set_flash('success', 'Exclusion eliminada correctamente.');
-    redirect_to('secciones/exclusiones/procExclusiones.php?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
+    redirect_to($redirectExclusiones);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['familia1'], $_POST['familia2'])) {
     require_csrf();
+    ensure_open_tournament_or_redirect($conexion, $torneoId, $redirectExclusiones);
 
     $familia1 = (int) $_POST['familia1'];
     $familia2 = (int) $_POST['familia2'];
@@ -62,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['familia1'], $_POST['f
         }
     }
 
-    redirect_to('secciones/exclusiones/procExclusiones.php?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
+    redirect_to($redirectExclusiones);
 }
 
 $sentenciaExclusiones = $conexion->prepare('

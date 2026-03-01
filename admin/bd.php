@@ -44,3 +44,25 @@ try {
 } catch (Throwable $error) {
     // Las mejoras de esquema no deben impedir la carga del sistema.
 }
+
+try {
+    $columnasTorneo = ['estado', 'fecha_cierre_real'];
+
+    foreach ($columnasTorneo as $columna) {
+        $consultaColumna = $conexion->prepare("SHOW COLUMNS FROM torneos LIKE :columna");
+        $consultaColumna->bindValue(':columna', $columna);
+        $consultaColumna->execute();
+
+        if ($consultaColumna->fetch()) {
+            continue;
+        }
+
+        if ($columna === 'estado') {
+            $conexion->exec("ALTER TABLE torneos ADD COLUMN estado VARCHAR(20) NOT NULL DEFAULT 'abierto' AFTER tipoTorneo");
+        } elseif ($columna === 'fecha_cierre_real') {
+            $conexion->exec("ALTER TABLE torneos ADD COLUMN fecha_cierre_real DATETIME DEFAULT NULL AFTER estado");
+        }
+    }
+} catch (Throwable $error) {
+    // Las mejoras de esquema no deben impedir la carga del sistema.
+}

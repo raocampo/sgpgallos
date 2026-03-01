@@ -1,34 +1,48 @@
-# Pendientes
+# Pendientes del proyecto
 
-## Base de datos
+## Alta prioridad
 
-- Aplicar `BD/sgpgallos_migracion_v2.sql`.
-- Normalizar columnas que hoy guardan IDs como texto en algunas tablas historicas.
-- Revisar y completar llaves foraneas.
-- Reemplazar la restriccion global de `anillo` por una restriccion compuesta por torneo.
+### 1. Base de datos
 
-## Seguridad
+- Aplicar en entorno real [BD/sgpgallos_migracion_v2.sql](../BD/sgpgallos_migracion_v2.sql).
+- Normalizar columnas historicas donde todavia se guardan IDs como texto.
+- Completar llaves foraneas y restricciones de integridad.
+- Revisar la regla de unicidad de `anillo` para dejarla por torneo.
+
+### 2. Seguridad
 
 - Cambiar credenciales administrativas heredadas.
-- Sacar configuraciones sensibles del repo si se desea desplegar fuera de local.
-- Definir politica de roles y permisos por modulo.
+- Definir roles y permisos por modulo.
+- Evaluar sacar configuraciones sensibles del repo si se despliega fuera de local.
 
-## Negocio
+### 3. Pruebas reales
 
-- Mejorar reglas del cotejamiento segun criterios finales del usuario.
-- Incorporar dashboard con estadisticas deportivas reales.
-- Agregar cierre de torneo y reportes consolidados.
-- Agregar historico por gallo y ranking.
+- Ejecutar prueba funcional completa del flujo del torneo en navegador.
+- Validar escenarios con torneo cerrado.
+- Validar flujo de resultados en movil y escritorio con datos reales.
 
-## Calidad tecnica
+## Prioridad media
 
-- Agregar pruebas funcionales del flujo principal.
+### 4. Negocio y operacion
+
+- Afinar mas reglas del cotejamiento segun criterios finales del usuario.
+- Agregar ranking por criadero, representante y gallo.
+- Incorporar historico por gallo.
+- Generar reportes consolidados de cierre del torneo.
+- Definir mejor reglas de anulacion, reapertura y cierre deportivo.
+
+### 5. UX y UI
+
+- Seguir compactando tablas del panel.
+- Mejorar formularios de altas y ediciones restantes.
+- Afinar estados vacios, mensajes de error y confirmaciones.
+- Revisar consistencia visual del sidebar y encabezados en todas las pantallas.
+
+## Prioridad baja
+
+### 6. Calidad tecnica
+
 - Reducir deuda tecnica en modulos heredados fuera del flujo principal.
-- Revisar consistencia de nombres de columnas y tablas.
-- Documentar mejor el proceso de despliegue y backup.
-
-## UX
-
-- Afinar formularios de altas y ediciones restantes.
-- Mejorar mensajes de validacion.
-- Revisar reportes imprimibles y formato PDF.
+- Revisar nombres historicos de columnas y tablas para estandarizacion.
+- Documentar despliegue, respaldo y restauracion.
+- Incorporar pruebas automatizadas minimas del flujo principal.

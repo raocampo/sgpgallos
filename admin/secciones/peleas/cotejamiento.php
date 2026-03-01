@@ -40,6 +40,100 @@ function valor_mes(?string $valor): ?int
     return $mes >= 1 && $mes <= 12 ? $mes : null;
 }
 
+function gallo_decimal(array $gallo, string $campo): float
+{
+    return (float) str_replace(',', '.', (string) ($gallo[$campo] ?? 0));
+}
+
+function distancia_meses(?int $mesA, ?int $mesB): ?int
+{
+    if ($mesA === null || $mesB === null) {
+        return null;
+    }
+
+    $distancia = abs($mesA - $mesB);
+
+    return min($distancia, 12 - $distancia);
+}
+
+function evaluar_coteja_candidata(
+    array $galloBase,
+    array $galloComparado,
+    bool $aplicarFiltroPeso,
+    ?float $toleranciaPeso,
+    bool $aplicarFiltroAltura,
+    ?float $toleranciaAltura,
+    bool $filtrarNacimiento,
+    bool $filtrarExclusion,
+    array $exclusiones
+): ?array {
+    if ((string) $galloBase['familiasId'] === (string) $galloComparado['familiasId']) {
+        return null;
+    }
+
+    if ($filtrarExclusion && isset($exclusiones[$galloBase['familiasId'] . '-' . $galloComparado['familiasId']])) {
+        return null;
+    }
+
+    $difPeso = abs(gallo_decimal($galloBase, 'pesoReal') - gallo_decimal($galloComparado, 'pesoReal'));
+    $difAltura = abs(gallo_decimal($galloBase, 'tamañoReal') - gallo_decimal($galloComparado, 'tamañoReal'));
+
+    if ($aplicarFiltroPeso && $toleranciaPeso !== null && $difPeso > $toleranciaPeso) {
+        return null;
+    }
+
+    if ($aplicarFiltroAltura && $toleranciaAltura !== null && $difAltura > $toleranciaAltura) {
+        return null;
+    }
+
+    $distanciaNacimiento = null;
+    if ($filtrarNacimiento) {
+        $distanciaNacimiento = distancia_meses(
+            valor_mes((string) $galloBase['nacimiento']),
+            valor_mes((string) $galloComparado['nacimiento'])
+        );
+
+        if ($distanciaNacimiento === null || $distanciaNacimiento > 1) {
+            return null;
+        }
+    }
+
+    $scorePrimario = 0.0;
+    $criteriosActivos = 0;
+
+    if ($aplicarFiltroPeso && $toleranciaPeso !== null) {
+        $scorePrimario += ($difPeso / max($toleranciaPeso, 0.01)) * 100;
+        $criteriosActivos++;
+    }
+
+    if ($aplicarFiltroAltura && $toleranciaAltura !== null) {
+        $scorePrimario += ($difAltura / max($toleranciaAltura, 0.01)) * 100;
+        $criteriosActivos++;
+    }
+
+    if ($criteriosActivos === 0) {
+        $scorePrimario = ($difPeso * 0.7) + ($difAltura * 0.3);
+    }
+
+    $scoreSecundario = ($difPeso * 0.01) + ($difAltura * 0.01);
+    if ($distanciaNacimiento !== null) {
+        $scoreSecundario += $distanciaNacimiento * 0.001;
+    }
+
+    $compatibilidad = null;
+    if ($criteriosActivos > 0) {
+        $compatibilidad = max(0.0, round(100 - ($scorePrimario / $criteriosActivos), 1));
+    }
+
+    return [
+        'score' => $scorePrimario + $scoreSecundario,
+        'difPeso' => round($difPeso, 2),
+        'difAltura' => round($difAltura, 2),
+        'compatibilidad' => $compatibilidad,
+        'distanciaNacimiento' => $distanciaNacimiento,
+    ];
+}
+
 function coteja_ya_guardada(PDO $conexion, int $torneoId, int $galloL, int $galloV): bool
 {
     $sentencia = $conexion->prepare('
@@ -127,6 +221,7 @@ function registrar_coteja(PDO $conexion, int $torneoId, int $galloL, int $galloV
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
+    ensure_open_tournament_or_redirect($conexion, $torneoId, $redirectUrl);
 
     if (isset($_POST['guardar_filtros'])) {
         $usaPeso = isset($_POST['medida']);
@@ -291,87 +386,79 @@ if ($filtrarExclusion) {
     }
 }
 
+$candidatos = [];
+$totalAnalisis = count($gallosEnAnalisis);
+
+for ($i = 0; $i < $totalAnalisis; $i++) {
+    for ($j = $i + 1; $j < $totalAnalisis; $j++) {
+        $evaluacion = evaluar_coteja_candidata(
+            $gallosEnAnalisis[$i],
+            $gallosEnAnalisis[$j],
+            $aplicarFiltroPeso,
+            $toleranciaPeso,
+            $aplicarFiltroAltura,
+            $toleranciaAltura,
+            $filtrarNacimiento,
+            $filtrarExclusion,
+            $exclusiones
+        );
+
+        if ($evaluacion === null) {
+            continue;
+        }
+
+        $candidatos[] = [
+            'galloL' => $gallosEnAnalisis[$i],
+            'galloV' => $gallosEnAnalisis[$j],
+            'score' => $evaluacion['score'],
+            'difPeso' => $evaluacion['difPeso'],
+            'difAltura' => $evaluacion['difAltura'],
+            'compatibilidad' => $evaluacion['compatibilidad'],
+            'distanciaNacimiento' => $evaluacion['distanciaNacimiento'],
+        ];
+    }
+}
+
+usort($candidatos, static function (array $a, array $b): int {
+    $comparacion = $a['score'] <=> $b['score'];
+    if ($comparacion !== 0) {
+        return $comparacion;
+    }
+
+    $comparacion = $a['difPeso'] <=> $b['difPeso'];
+    if ($comparacion !== 0) {
+        return $comparacion;
+    }
+
+    return $a['difAltura'] <=> $b['difAltura'];
+});
+
 $parejasPropuestas = [];
-$gallosLibres = [];
 $idsUsados = [];
 
-for ($i = 0, $totalAnalisis = count($gallosEnAnalisis); $i < $totalAnalisis; $i++) {
-    $galloBase = $gallosEnAnalisis[$i];
-    $idBase = (int) $galloBase['ID'];
+foreach ($candidatos as $candidato) {
+    $idL = (int) $candidato['galloL']['ID'];
+    $idV = (int) $candidato['galloV']['ID'];
 
-    if (isset($idsUsados[$idBase])) {
+    if (isset($idsUsados[$idL]) || isset($idsUsados[$idV])) {
         continue;
     }
 
-    $mejorIndice = null;
-    $mejorPuntaje = null;
-
-    for ($j = $i + 1; $j < $totalAnalisis; $j++) {
-        $galloComparado = $gallosEnAnalisis[$j];
-        $idComparado = (int) $galloComparado['ID'];
-
-        if (isset($idsUsados[$idComparado])) {
-            continue;
-        }
-
-        if ((string) $galloBase['familiasId'] === (string) $galloComparado['familiasId']) {
-            continue;
-        }
-
-        if ($filtrarExclusion && isset($exclusiones[$galloBase['familiasId'] . '-' . $galloComparado['familiasId']])) {
-            continue;
-        }
-
-        $difPeso = abs((float) $galloBase['pesoReal'] - (float) $galloComparado['pesoReal']);
-        $difAltura = abs((float) $galloBase['tamañoReal'] - (float) $galloComparado['tamañoReal']);
-
-        if ($aplicarFiltroPeso && $difPeso > (float) $toleranciaPeso) {
-            continue;
-        }
-
-        if ($aplicarFiltroAltura && $difAltura > (float) $toleranciaAltura) {
-            continue;
-        }
-
-        if ($filtrarNacimiento) {
-            $mesBase = valor_mes((string) $galloBase['nacimiento']);
-            $mesComparado = valor_mes((string) $galloComparado['nacimiento']);
-
-            if ($mesBase === null || $mesComparado === null || abs($mesBase - $mesComparado) > 1) {
-                continue;
-            }
-        }
-
-        if (!$aplicarFiltroPeso && !$aplicarFiltroAltura && ($difPeso > 0 || $difAltura > 0)) {
-            continue;
-        }
-
-        $puntaje = 0;
-        $puntaje += $aplicarFiltroPeso ? ($difPeso * 1000) : 0;
-        $puntaje += $aplicarFiltroAltura ? ($difAltura * 100) : 0;
-        $puntaje += (!$aplicarFiltroPeso && !$aplicarFiltroAltura) ? (($difPeso + $difAltura) * 1000) : 0;
-
-        if ($mejorPuntaje === null || $puntaje < $mejorPuntaje) {
-            $mejorPuntaje = $puntaje;
-            $mejorIndice = $j;
-        }
-    }
-
-    if ($mejorIndice !== null) {
-        $parejasPropuestas[] = [$galloBase, $gallosEnAnalisis[$mejorIndice]];
-        $idsUsados[$idBase] = true;
-        $idsUsados[(int) $gallosEnAnalisis[$mejorIndice]['ID']] = true;
-    } else {
-        $gallosLibres[] = $galloBase;
-    }
+    $parejasPropuestas[] = $candidato;
+    $idsUsados[$idL] = true;
+    $idsUsados[$idV] = true;
 }
+
+$gallosLibres = array_values(array_filter($gallosEnAnalisis, static function (array $gallo) use ($idsUsados): bool {
+    return !isset($idsUsados[(int) $gallo['ID']]);
+}));
 
 $resumenFiltros = [];
 if ($aplicarFiltroPeso) {
-    $resumenFiltros[] = 'Peso +/- ' . rtrim(rtrim((string) $toleranciaPeso, '0'), '.');
+    $resumenFiltros[] = 'Tolerancia peso +/- ' . rtrim(rtrim((string) $toleranciaPeso, '0'), '.');
 }
 if ($aplicarFiltroAltura) {
-    $resumenFiltros[] = 'Altura +/- ' . rtrim(rtrim((string) $toleranciaAltura, '0'), '.');
+    $resumenFiltros[] = 'Tolerancia altura +/- ' . rtrim(rtrim((string) $toleranciaAltura, '0'), '.');
 }
 if ($filtrarNacimiento) {
     $resumenFiltros[] = 'Nacimiento compatible';
@@ -380,7 +467,7 @@ if ($filtrarExclusion) {
     $resumenFiltros[] = 'Respeta exclusiones';
 }
 if (!$aplicarFiltroPeso && !$aplicarFiltroAltura) {
-    $resumenFiltros[] = 'Sin peso/altura: coincidencia exacta';
+    $resumenFiltros[] = 'Sin tolerancias activas: prioridad por cercania general';
 }
 
 include __DIR__ . '/../../templates/header.sub.php';
@@ -390,7 +477,7 @@ include __DIR__ . '/../../templates/header.sub.php';
     <div>
         <span class="app-kicker">Motor de cruces</span>
         <h2 class="page-title mb-2">Cotejamiento del torneo</h2>
-        <p>Seleccione por peso, altura, nacimiento y exclusiones para generar propuestas automaticas del torneo activo.</p>
+        <p>El sistema analiza tolerancias de peso y altura para armar el mejor emparejamiento posible del lote seleccionado.</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-outline-primary btn-sm" href="peleaGenerada.php">Ver peleas</a>
@@ -437,8 +524,8 @@ include __DIR__ . '/../../templates/header.sub.php';
         <div class="card table-card">
             <div class="card-header panel-toolbar">
                 <div>
-                    <div class="panel-title">Parametros de emparejamiento</div>
-                    <div class="panel-note">Puede usar peso, altura o ambos. Nacimiento y exclusiones se aplican como filtros adicionales.</div>
+                    <div class="panel-title">Tolerancias de cotejamiento</div>
+                    <div class="panel-note">El motor construye todas las parejas validas y selecciona globalmente las de menor diferencia dentro de las tolerancias activas.</div>
                 </div>
                 <span class="badge-soft"><?php echo e((string) min($loteSolicitado, $maximoCotejable)); ?> gallos en analisis</span>
             </div>
@@ -448,18 +535,18 @@ include __DIR__ . '/../../templates/header.sub.php';
                     <input type="hidden" name="guardar_filtros" value="1">
 
                     <div class="col-md-6">
-                        <label class="form-label d-block" for="onzas">Filtrar por peso</label>
+                        <label class="form-label d-block" for="onzas">Tolerancia de peso</label>
                         <div class="filter-input-group">
                             <input type="checkbox" name="medida" value="onzas" id="onzas" <?php echo $aplicarFiltroPeso ? 'checked' : ''; ?>>
-                            <input class="form-control" type="number" step="0.01" min="0" name="peso" id="peso" value="<?php echo e((string) ($filtros['peso'] ?? '')); ?>" <?php echo $aplicarFiltroPeso ? '' : 'disabled'; ?>>
+                            <input class="form-control" type="number" step="0.01" min="0" name="peso" id="peso" placeholder="+/- peso" value="<?php echo e((string) ($filtros['peso'] ?? '')); ?>" <?php echo $aplicarFiltroPeso ? '' : 'disabled'; ?>>
                         </div>
                     </div>
 
                     <div class="col-md-6">
-                        <label class="form-label d-block" for="centimetros">Filtrar por altura</label>
+                        <label class="form-label d-block" for="centimetros">Tolerancia de altura</label>
                         <div class="filter-input-group">
                             <input type="checkbox" name="medidaAltura" value="centimetros" id="centimetros" <?php echo $aplicarFiltroAltura ? 'checked' : ''; ?>>
-                            <input class="form-control" type="number" step="0.01" min="0" name="altura" id="altura" value="<?php echo e((string) ($filtros['altura'] ?? '')); ?>" <?php echo $aplicarFiltroAltura ? '' : 'disabled'; ?>>
+                            <input class="form-control" type="number" step="0.01" min="0" name="altura" id="altura" placeholder="+/- altura" value="<?php echo e((string) ($filtros['altura'] ?? '')); ?>" <?php echo $aplicarFiltroAltura ? '' : 'disabled'; ?>>
                         </div>
                     </div>
 
@@ -610,7 +697,7 @@ include __DIR__ . '/../../templates/header.sub.php';
             <div class="card-header panel-toolbar">
                 <div>
                     <div class="panel-title">Propuestas automaticas</div>
-                    <div class="panel-note">El sistema aplica el filtro seleccionado y deja listas las mejores parejas encontradas.</div>
+                    <div class="panel-note">Las parejas se ordenan por menor diferencia combinada y respetan las tolerancias activas.</div>
                 </div>
                 <span class="badge-soft"><?php echo e((string) count($parejasPropuestas)); ?> sugeridas</span>
             </div>
@@ -629,12 +716,16 @@ include __DIR__ . '/../../templates/header.sub.php';
                                     <th>Criadero V</th>
                                     <th>Peso V</th>
                                     <th>Altura V</th>
+                                    <th>Dif. peso</th>
+                                    <th>Dif. altura</th>
+                                    <th>Ajuste</th>
                                     <th>Seleccionar</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php foreach ($parejasPropuestas as $index => $pareja): ?>
-                                    <?php [$galloL, $galloV] = $pareja; ?>
+                                    <?php $galloL = $pareja['galloL']; ?>
+                                    <?php $galloV = $pareja['galloV']; ?>
                                     <tr>
                                         <td><?php echo e((string) ($index + 1)); ?></td>
                                         <td><?php echo e($galloL['anillo']); ?></td>
@@ -645,6 +736,15 @@ include __DIR__ . '/../../templates/header.sub.php';
                                         <td><?php echo e($galloV['nombre_familia']); ?></td>
                                         <td><?php echo e((string) $galloV['pesoReal']); ?></td>
                                         <td><?php echo e((string) $galloV['tamañoReal']); ?></td>
+                                        <td><?php echo e((string) $pareja['difPeso']); ?></td>
+                                        <td><?php echo e((string) $pareja['difAltura']); ?></td>
+                                        <td>
+                                            <?php if ($pareja['compatibilidad'] !== null): ?>
+                                                <span class="badge-soft"><?php echo e((string) $pareja['compatibilidad']); ?>%</span>
+                                            <?php else: ?>
+                                                <span class="badge-soft accent">Cercania</span>
+                                            <?php endif; ?>
+                                        </td>
                                         <td><input type="checkbox" class="form-check-input" form="form-pactar-peleas" name="peleas[]" value="<?php echo e($galloL['ID'] . '-' . $galloV['ID']); ?>"></td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -654,7 +754,7 @@ include __DIR__ . '/../../templates/header.sub.php';
                 <?php else: ?>
                     <div class="empty-panel">
                         <h3>Sin propuestas para el filtro actual</h3>
-                        <p>Pruebe cambiando peso, altura, lote de analisis o revise las exclusiones activas del torneo.</p>
+                        <p>Ajuste las tolerancias, el lote de analisis o revise exclusiones y nacimiento para ampliar las combinaciones validas.</p>
                     </div>
                 <?php endif; ?>
             </div>

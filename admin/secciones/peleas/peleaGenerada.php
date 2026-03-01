@@ -8,9 +8,11 @@ start_secure_session();
 $context = require_tournament_context('Seleccione un torneo antes de gestionar peleas.');
 $torneoId = $context['torneoId'];
 $nombreTorneo = $context['nombreTorneo'];
+$redirectPeleas = 'secciones/peleas/peleaGenerada.php?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['peleaGenerada'])) {
     require_csrf();
+    ensure_open_tournament_or_redirect($conexion, $torneoId, $redirectPeleas);
 
     $peleasSeleccionadas = $_POST['peleas'] ?? [];
 
@@ -111,11 +113,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['peleaGenerada'])) {
         }
     }
 
-    redirect_to('secciones/peleas/peleaGenerada.php?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
+    redirect_to($redirectPeleas);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_pelea'])) {
     require_csrf();
+    ensure_open_tournament_or_redirect($conexion, $torneoId, $redirectPeleas);
 
     $id = (int) $_POST['eliminar_pelea'];
     $sentencia = $conexion->prepare('DELETE FROM peleas WHERE ID_Pelea = :id AND torneoId = :torneoId');
@@ -124,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_pelea'])) {
     $sentencia->execute();
 
     set_flash('success', 'Pelea liberada correctamente.');
-    redirect_to('secciones/peleas/peleaGenerada.php?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
+    redirect_to($redirectPeleas);
 }
 
 $sentencia = $conexion->prepare('
@@ -202,7 +205,7 @@ include __DIR__ . '/../../templates/header.sub.php';
     <div class="card-body">
         <?php if (!empty($resultado)): ?>
         <div class="table-responsive">
-            <table class="table table-bordered align-middle" data-datatable="true">
+            <table class="table table-bordered table-grid table-compact align-middle" data-datatable="true">
                 <thead class="table-light">
                     <tr>
                         <th>Pelea</th>

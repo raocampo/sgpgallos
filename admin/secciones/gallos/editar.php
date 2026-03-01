@@ -8,6 +8,7 @@ start_secure_session();
 $context = require_tournament_context('Seleccione un torneo antes de editar gallos.');
 $torneoId = $context['torneoId'];
 $nombreTorneo = $context['nombreTorneo'];
+$redirectGallos = 'secciones/gallos/?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId;
 $txtID = isset($_GET['txtID']) ? (int) $_GET['txtID'] : 0;
 
 if ($torneoId <= 0 || $txtID <= 0) {
@@ -44,6 +45,7 @@ $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_csrf();
+    ensure_open_tournament_or_redirect($conexion, $torneoId, $redirectGallos);
 
     foreach ($valores as $campo => $valor) {
         $valores[$campo] = post($campo);
@@ -87,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $actualiza->execute();
 
                 set_flash('success', 'Gallo actualizado correctamente.');
-                redirect_to('secciones/gallos/?nombreTorneo=' . urlencode((string) $_SESSION['nombreTorneo']) . '&torneoId=' . $torneoId);
+                redirect_to($redirectGallos);
             } catch (Throwable $errorDb) {
                 $error = 'No fue posible actualizar el gallo.';
             }

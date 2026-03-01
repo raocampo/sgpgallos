@@ -10,6 +10,12 @@ $rutaActual = $_SERVER['REQUEST_URI'] ?? '';
 $context = require_tournament_context('Seleccione un torneo antes de continuar.');
 $nombreTorneo = $context['nombreTorneo'];
 $torneoId = $context['torneoId'];
+$estadoTorneoActual = 'abierto';
+
+if (isset($conexion) && $conexion instanceof PDO) {
+  $torneoActual = fetch_tournament_record($conexion, $torneoId);
+  $estadoTorneoActual = tournament_state_label($torneoActual['estado'] ?? null);
+}
 
 function torneo_link(string $path): string
 {
@@ -38,24 +44,60 @@ function torneo_link(string $path): string
   <script src="<?php echo e(asset_url('DataTables/datatables.min.js')); ?>"></script>
 </head>
 <body class="app-shell">
-  <header class="app-topbar">
-    <div class="container-fluid py-3">
-      <div class="d-flex flex-column flex-lg-row justify-content-lg-between align-items-lg-center gap-3">
-        <div class="app-brand">
-          <span class="app-kicker">Torneo activo</span>
-          <h1 class="app-title"><?php echo e($nombreTorneo); ?></h1>
-          <div class="app-subtitle">Gestion operativa del torneo seleccionado</div>
+  <div class="app-frame">
+    <aside class="app-sidebar" id="app-sidebar" aria-label="Navegacion del torneo">
+      <div class="app-sidebar__inner">
+        <div class="app-sidebar__brand">
+          <div class="app-brand app-brand--stacked">
+            <img src="<?php echo e(asset_url('images/Logo.png')); ?>" alt="Logo">
+            <div>
+              <h1 class="app-title">Panel del torneo</h1>
+              <div class="app-subtitle"><?php echo e($nombreTorneo); ?></div>
+            </div>
+          </div>
+          <button type="button" class="app-sidebar__close d-lg-none" data-sidebar-close aria-label="Cerrar menu">
+            <span class="app-icon-glyph" aria-hidden="true">&times;</span>
+          </button>
         </div>
-        <nav class="nav nav-pills flex-wrap app-nav">
-          <a class="nav-link <?php echo strpos($rutaActual, '/secciones/gallos') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/gallos/')); ?>">Gallos</a>
-          <a class="nav-link <?php echo strpos($rutaActual, '/secciones/exclusiones') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/exclusiones/')); ?>">Exclusiones</a>
-          <a class="nav-link <?php echo strpos($rutaActual, '/secciones/peleas/cotejamiento.php') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/peleas/cotejamiento.php')); ?>">Cotejas</a>
-          <a class="nav-link <?php echo strpos($rutaActual, '/secciones/peleas/peleaGenerada.php') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/peleas/peleaGenerada.php')); ?>">Peleas</a>
-          <a class="nav-link <?php echo strpos($rutaActual, '/secciones/peleas/resultados.php') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/peleas/resultados.php')); ?>">Resultados</a>
-          <a class="nav-link" href="<?php echo e(admin_url()); ?>">Inicio</a>
-        </nav>
+
+        <div class="app-sidebar__section">
+          <div class="app-sidebar__section-label">Flujo del torneo</div>
+          <nav class="nav flex-column app-nav app-sidebar__nav">
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/torneos/dashboard.php') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/torneos/dashboard.php')); ?>">Resumen</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/gallos') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/gallos/')); ?>">Gallos</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/exclusiones') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/exclusiones/')); ?>">Exclusiones</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/peleas/cotejamiento.php') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/peleas/cotejamiento.php')); ?>">Cotejas</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/peleas/peleaGenerada.php') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/peleas/peleaGenerada.php')); ?>">Peleas</a>
+            <a class="nav-link <?php echo strpos($rutaActual, '/secciones/peleas/resultados.php') !== false ? 'active' : ''; ?>" href="<?php echo e(torneo_link('secciones/peleas/resultados.php')); ?>">Resultados</a>
+            <a class="nav-link" href="<?php echo e(admin_url('secciones/torneos/')); ?>">Volver a torneos</a>
+            <a class="nav-link" href="<?php echo e(admin_url()); ?>">Inicio</a>
+            <a class="nav-link" href="<?php echo e(admin_url('cerrar.php')); ?>">Cerrar sesion</a>
+          </nav>
+        </div>
       </div>
-    </div>
-  </header>
-  <main class="container-fluid app-main">
-    <?php render_flash(); ?>
+    </aside>
+
+    <div class="app-sidebar-backdrop" data-sidebar-close></div>
+
+    <div class="app-content-shell">
+      <header class="app-shellbar">
+        <div class="app-shellbar__group">
+          <button type="button" class="app-sidebar-toggle" data-sidebar-toggle aria-controls="app-sidebar" aria-expanded="false" aria-label="Mostrar u ocultar sidebar">
+            <span class="app-icon-glyph" aria-hidden="true">&#9776;</span>
+          </button>
+          <div class="app-shellbar__copy">
+            <div class="app-shellbar__title"><?php echo e($nombreTorneo); ?></div>
+          </div>
+        </div>
+        <div class="app-shellbar__meta">
+          <span class="badge-soft <?php echo $estadoTorneoActual === 'cerrado' ? 'accent' : ''; ?>"><?php echo e($estadoTorneoActual); ?></span>
+        </div>
+      </header>
+
+      <div class="tournament-note">
+        <div class="tournament-note__title">Operacion del torneo</div>
+        <div class="tournament-note__copy">Carga de gallos, exclusiones, cotejas, peleas y resultados del torneo seleccionado.</div>
+      </div>
+
+      <main class="container-fluid app-main">
+        <?php render_flash(); ?>

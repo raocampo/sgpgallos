@@ -102,7 +102,7 @@ include __DIR__ . '/templates/header.php';
                             <td><?php echo e($torneo['fecha_fin']); ?></td>
                             <td><?php echo e($torneo['tipoTorneo']); ?></td>
                             <td>
-                                <a class="btn btn-outline-primary btn-sm" href="<?php echo e(admin_url('secciones/gallos/')); ?>?nombreTorneo=<?php echo urlencode($torneo['nombre']); ?>&torneoId=<?php echo urlencode((string) $torneo['ID']); ?>">Abrir</a>
+                                <a class="btn btn-outline-primary btn-sm" href="<?php echo e(admin_url('secciones/torneos/dashboard.php')); ?>?nombreTorneo=<?php echo urlencode($torneo['nombre']); ?>&torneoId=<?php echo urlencode((string) $torneo['ID']); ?>">Abrir</a>
                             </td>
                         </tr>
                     <?php endforeach; ?>

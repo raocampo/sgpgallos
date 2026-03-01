@@ -8,9 +8,11 @@ start_secure_session();
 $context = require_tournament_context('Seleccione un torneo antes de gestionar gallos.');
 $torneoId = $context['torneoId'];
 $nombreTorneo = $context['nombreTorneo'];
+$redirectGallos = 'secciones/gallos/?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_gallo'])) {
     require_csrf();
+    ensure_open_tournament_or_redirect($conexion, $torneoId, $redirectGallos);
 
     $id = (int) $_POST['eliminar_gallo'];
     $sentencia = $conexion->prepare('DELETE FROM gallos WHERE ID = :id AND torneoId = :torneoId');
@@ -19,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['eliminar_gallo'])) {
     $sentencia->execute();
 
     set_flash('success', 'Gallo eliminado correctamente.');
-    redirect_to('secciones/gallos/?nombreTorneo=' . urlencode($nombreTorneo) . '&torneoId=' . $torneoId);
+    redirect_to($redirectGallos);
 }
 
 $sentencia = $conexion->prepare('
